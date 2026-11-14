@@ -10,7 +10,7 @@
 * { box-sizing:border-box; margin:0; }
 body { background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
 .wrap { max-width:880px; margin:0 auto; padding:14px; }
-header { display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
+header { display:flex; justify-content:space-between; align-items:center;
          gap:10px; margin-bottom:14px; }
 h1 { font-size:19px; }
 input, button { font:inherit; border-radius:8px; border:1px solid var(--line);
@@ -21,14 +21,14 @@ input[name=user] { width:130px; }
 .hdr-right { display:flex; gap:10px; justify-content:flex-end; align-items:center; }
 .timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
 
-/* the pirate-attack scene, top center */
-#scene-box { position:relative; cursor:pointer; }
-#pirate-scene { width:400px; height:120px; image-rendering:pixelated;
+/* the pirate-attack scene, full question-box width under the header */
+#scene-box { position:relative; cursor:pointer; margin-bottom:14px; }
+#pirate-scene { width:100%; height:auto; image-rendering:pixelated;
                 display:block; border-radius:10px; border:1px solid var(--line); }
 #elo-value { position:absolute; top:5px; right:7px; font-size:16px; font-weight:700;
              font-variant-numeric:tabular-nums; color:#e8ecf4;
              text-shadow:1px 1px 0 #000; transition:color .25s; }
-#elo-delta { position:absolute; top:8px; right:44px; font-size:12px; font-weight:700;
+#elo-delta { position:absolute; top:26px; right:7px; font-size:12px; font-weight:700;
              opacity:0; transition:opacity .3s; text-shadow:1px 1px 0 #000; }
 #elo-delta.up { color:var(--good); opacity:1; }
 #elo-delta.down { color:var(--bad); opacity:1; }
@@ -101,21 +101,21 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 <div class="wrap">
 <header>
   <h1>🦘 Kangaroo Trainer</h1>
-  <div id="scene-box" title="Your general Elo, as a pirate attack — click for the per-topic ratings">
-    <canvas id="pirate-scene" width="200" height="60"></canvas>
-    <span id="elo-value">800</span><span id="elo-delta"></span>
-    <div id="elo-pop">
-      <h3>Your ratings per topic</h3>
-      <div class="bars" id="bars"></div>
-      <h3 style="margin-top:10px">Recent attempts</h3>
-      <table class="hist" id="hist"></table>
-    </div>
-  </div>
   <div class="hdr-right">
     <input name="user" placeholder="your name" value="guest">
     <span class="timer" id="timer"></span>
   </div>
 </header>
+<div id="scene-box" title="Your general Elo, as a pirate attack — click for the per-topic ratings">
+  <canvas id="pirate-scene" width="200" height="60"></canvas>
+  <span id="elo-value">800</span><span id="elo-delta"></span>
+  <div id="elo-pop">
+    <h3>Your ratings per topic</h3>
+    <div class="bars" id="bars"></div>
+    <h3 style="margin-top:10px">Recent attempts</h3>
+    <table class="hist" id="hist"></table>
+  </div>
+</div>
 <div id="status">Loading…</div>
 
 <div class="card" id="problem-card">
