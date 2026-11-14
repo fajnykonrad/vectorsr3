@@ -48,16 +48,11 @@ def main():
         raise SystemExit("no problems with options")
 
     call = llm_call_factory(args.url)
-    rows, leaked, errors = [], 0, 0
+    rows = []
     for i, problem in enumerate(problems, 1):
         t0 = time.time()
         text, status = model_hint(problem, problem["label"], call)
         dt = time.time() - t0
-        if text is None:
-            if status == "leaked":
-                leaked += 1
-            else:
-                errors += 1
         rows.append((problem, text, status, dt))
         mark = {"ok": "."}.get(status, status[0].upper())
         print(mark, end="", flush=True)
@@ -65,21 +60,26 @@ def main():
             print(f"  [{i}/{len(problems)}]", flush=True)
 
     served = [r for r in rows if r[2] == "ok"]
+    leaked = sum(1 for r in rows if r[2] == "leaked")
+    errors = [r for r in rows if r[2] != "ok" and r[2] != "leaked"]
     print(f"\n\n{len(problems)} problems: {len(served)} served, "
-          f"{leaked} leaked (rejected), {errors} errors")
+          f"{leaked} leaked (rejected), {len(errors)} errors")
     if served:
         seconds = [r[3] for r in served]
         print(f"Latency: mean {statistics.mean(seconds):.1f} s, "
               f"worst {max(seconds):.1f} s")
+    if errors:
+        print("\nErrors:")
+        for problem, _text, status, _dt in errors[:5]:
+            print(f"  {problem['id']}: {status[:100]}")
     if leaked:
-        print("\nLeaked hints (these would have been rejected by the server):")
+        print("\nLeaked hints (rejected by the leak check):")
         for problem, text, status, _dt in rows:
             if status == "leaked":
                 print(f"  {problem['id']}: {text!r}")
     print("\nSample hints:")
-    for problem, text, status, _dt in rows[:6]:
-        if text:
-            print(f"  [{problem['topic']}] {text}")
+    for problem, text, status, _dt in [r for r in rows if r[2] == "ok"][:8]:
+        print(f"  [{problem['topic']}] {text}")
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ from prepare_m3kang import LETTERS, MARKER, reading_order  # noqa: E402
 
 STRIP = 0.5        # the options live in the bottom half of the image
 PAD = 6            # pixels kept left of each marker
-WORKERS = 4
+WORKERS = 6
 
 
 def marker_positions(items):
@@ -171,6 +171,19 @@ def main():
         with open(out_meta) as f:
             meta = json.load(f)
 
+    # recover from previous runs: when all five crop files already exist,
+    # the problem is done even if the metadata write was interrupted
+    for p in todo:
+        key = f"{p['id']}|{p['language']}"
+        if key in meta:
+            continue
+        names = {l: key.replace("|", "_") + f"-opt{l}.png" for l in LETTERS}
+        if all(os.path.exists(os.path.join(images_dir, n)) for n in names.values()):
+            meta[key] = names
+    if meta:
+        with open(out_meta, "w") as f:
+            json.dump(meta, f, ensure_ascii=False)
+
     # only the ones we have an image for, and not done already
     jobs, done = [], 0
     for p in todo:
@@ -187,27 +200,34 @@ def main():
     if jobs:
         started = time.time()
         ctx = multiprocessing.get_context("fork")
+
+        def save():
+            with open(out_meta, "w") as f:
+                json.dump(meta, f, ensure_ascii=False)
+
         with ctx.Pool(WORKERS, initializer=worker_init) as pool:
-            for n, result in enumerate(pool.imap_unordered(worker, jobs), 1):
-                if result is None:
-                    continue
-                key, crops = result
-                names = {}
-                for letter, arr in zip(LETTERS, crops):
-                    ok, buf = cv2_imencode(arr)
-                    if not ok:
-                        continue
-                    name = key.replace("|", "_") + f"-opt{letter}.png"
-                    with open(os.path.join(images_dir, name), "wb") as f:
-                        f.write(buf)
-                    names[letter] = name
-                if len(names) == 5:
-                    meta[key] = names
-                if n % 25 == 0:
+            results = pool.imap_unordered(worker, jobs)
+            for n, result in enumerate(results, 1):
+                if result is not None:
+                    key, crops = result
+                    names = {}
+                    for letter, arr in zip(LETTERS, crops):
+                        ok, buf = cv2_imencode(arr)
+                        if not ok:
+                            continue
+                        name = key.replace("|", "_") + f"-opt{letter}.png"
+                        with open(os.path.join(images_dir, name), "wb") as f:
+                            f.write(buf)
+                        names[letter] = name
+                    if len(names) == 5:
+                        meta[key] = names
+                if n % 20 == 0:
+                    save()  # incremental: the server can pick crops up any time
                     rate = n / (time.time() - started)
                     left = (len(jobs) - n) / max(rate, 0.01)
-                    print(f"  {n}/{len(jobs)} ({rate:.1f}/s, ~{left:.0f} min left)",
+                    print(f"  {n}/{len(jobs)} ({rate:.1f}/s, ~{left:.0f} s left)",
                           flush=True)
+        save()
 
     with open(out_meta, "w") as f:
         json.dump(meta, f, ensure_ascii=False)

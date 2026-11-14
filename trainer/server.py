@@ -67,7 +67,10 @@ class Trainer:
         self.con = connect(db_path)
         self.index = make_index(index_path)
         self.rng = random.Random(42)
+        self.data_dir = data_dir
         self.option_crops = self.load_option_crops(data_dir)
+        self._crops_mtime = None
+        self.maybe_reload_crops()
         print(f"{len(self.problems)} problems, index: {'yes' if self.index else 'no'}, "
               f"option crops: {len(self.option_crops)}")
 
@@ -79,8 +82,21 @@ class Trainer:
         with open(path) as f:
             return json.load(f)
 
+    def maybe_reload_crops(self):
+        """Pick up new option crops while the server runs; the crop job
+        writes the file every few dozen images."""
+        path = os.path.join(self.data_dir, "option_crops.json")
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            return
+        if mtime != self._crops_mtime:
+            self._crops_mtime = mtime
+            self.option_crops = self.load_option_crops(self.data_dir)
+
     def sanitized(self, problem):
         """What the browser may see: no label, no split."""
+        self.maybe_reload_crops()
         clean = {k: v for k, v in problem.items() if k not in ("label", "split")}
         # for picture options: the per-letter crop images, when we have them
         crops = self.option_crops.get(f"{problem['id']}|{problem['language']}")

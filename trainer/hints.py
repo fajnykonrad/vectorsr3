@@ -74,14 +74,14 @@ def model_hint(problem, label, llm, timeout=20.0):
     ]
     try:
         text = llm(messages, timeout=timeout)
-    except Exception:
-        return None, "error"
+    except Exception as error:
+        return None, f"error: {error}"
     text = text.strip().strip('"')
     words = text.split()
     if len(words) > MAX_HINT_WORDS + 8:  # a little slack around the limit
         text = " ".join(words[:MAX_HINT_WORDS]) + "..."
     if leaks(text, problem, label):
-        return None, "leaked"
+        return text, "leaked"
     return text, "ok"
 
 
@@ -102,7 +102,7 @@ def hint_rung(rung, problem, label, index=None, problems=(), llm=None):
         return {"rung": 2, "text": strategy_cue(problem)}
     if rung <= 3 and llm is not None:
         text, status = model_hint(problem, label, llm)
-        if text:
+        if text and status == "ok":
             return {"rung": 3, "text": text, "status": status}
         return {"rung": 2, "text": strategy_cue(problem),
                 "status": status or "fallback"}
