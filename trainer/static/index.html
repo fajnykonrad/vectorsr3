@@ -123,7 +123,7 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 <div class="card" id="problem-card">
   <div><span class="chip" id="p-topic"></span><span class="chip" id="p-diff"></span>
        <span class="chip" id="p-level"></span>
-       <span class="chip" id="p-id"></span></div>
+       <span class="chip" id="p-year"></span></div>
   <div id="p-text" style="display:none"></div>
   <img class="problem" id="p-img" style="display:none">
   <div class="opts" id="p-opts"></div>
@@ -247,12 +247,13 @@ async function next(){
     problem = data.problem;
     answered = false; hintRung = 0; choice = null;
     $("certainty").value = 3; setCertainty(3);
-    $("p-topic").textContent = data.topic;
-    const diffNames = ["easy","medium","hard"];
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const diffNames = ["Easy", "Medium", "Hard"];
+    $("p-topic").textContent = cap(data.topic);
     $("p-diff").textContent = diffNames[problem.difficulty || 0];
-    $("p-diff").className = "chip diff-" + diffNames[problem.difficulty || 0];
-    $("p-level").textContent = "level " + (problem.level ?? "?");
-    $("p-id").textContent = problem.id;
+    $("p-diff").className = "chip diff-" + diffNames[problem.difficulty || 0].toLowerCase();
+    $("p-level").textContent = "Level " + (problem.level ?? "?");
+    $("p-year").textContent = "Year " + (problem.year ?? "?");
     $("p-text").textContent = problem.text;
     $("p-text").style.display = "none";   // the image carries the full problem
     const img = $("p-img");
