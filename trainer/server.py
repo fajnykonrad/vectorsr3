@@ -20,14 +20,16 @@ import argparse
 import json
 import os
 import random
+import threading
 import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from .db import LOCK, connect, ensure_user, recent_seen, record_attempt, user_ratings
-from .hints import hint_rung
+from .db import (LOCK, connect, ensure_user, overall_rating, recent_seen,
+                 record_attempt, user_ratings)
+from .hints import explain_answer, hint_rung
 from .problems import load, problem_ratings_from
 from .selector import RECENT, pick_problem, pick_topic
 from .topics import TOPICS
@@ -38,7 +40,7 @@ LLM_URL = "http://127.0.0.1:8081/v1/chat/completions"
 
 def llm_call(messages, timeout=20.0):
     """One chat completion from llama-server; raises on any failure."""
-    body = json.dumps({"messages": messages, "max_tokens": 90,
+    body = json.dumps({"messages": messages, "max_tokens": 220,
                        "temperature": 0.7, "cache_prompt": True}).encode()
     request = urllib.request.Request(
         LLM_URL, data=body, headers={"Content-Type": "application/json"})
@@ -68,7 +70,44 @@ class Trainer:
         self.index = make_index(index_path)
         self.rng = random.Random(42)
         self.data_dir = data_dir
+        # explanations are generated while the student reads the problem,
+        # and shown only after a wrong answer: {id: (event, result)}
+        self.explanations = {}
+        self._expl_lock = threading.Lock()
         print(f"{len(self.problems)} problems, index: {'yes' if self.index else 'no'}")
+
+    def prefetch_explanation(self, problem):
+        """Generate the wrong-answer explanation in the background."""
+        pid = problem["id"]
+        with self._expl_lock:
+            if pid in self.explanations:
+                return
+            event, holder = threading.Event(), {}
+            self.explanations[pid] = (event, holder)
+
+        def work():
+            try:
+                holder["value"] = explain_answer(problem, problem["label"],
+                                                 llm=llm_call)
+            except Exception:
+                pass  # the answer endpoint generates one on demand instead
+            finally:
+                event.set()
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def take_explanation(self, problem):
+        """The prefetched explanation, waiting for it briefly; generates one
+        only when there is nothing to wait for."""
+        pid = problem["id"]
+        with self._expl_lock:
+            entry = self.explanations.pop(pid, None)
+        if entry is None:
+            return explain_answer(problem, problem["label"], llm=llm_call)
+        event, holder = entry
+        event.wait(timeout=25.0)
+        return holder.get("value") or explain_answer(problem, problem["label"],
+                                                     llm=llm_call)
 
     def sanitized(self, problem):
         """What the browser may see: no label, no split."""
@@ -84,6 +123,7 @@ class Trainer:
 
     def stats(self, user_id):
         with LOCK:
+            overall = overall_rating(self.con, user_id)
             ratings = user_ratings(self.con, user_id)
             rows = self.con.execute(
                 "SELECT problem_id, topic, correct, certainty, seconds, hint_rung, "
@@ -95,6 +135,7 @@ class Trainer:
                     "GROUP BY topic", (user_id,)):
                 counts[row["topic"]] = row["n"]
         return {
+            "overall": round(overall),
             "ratings": {t: {"rating": round(ratings.get(t, (800.0, 0))[0]),
                             "n": ratings.get(t, (0, 0))[1]} for t in TOPICS},
             "attempts": [{"problem": r["problem_id"], "topic": r["topic"],
@@ -143,6 +184,7 @@ class Handler(BaseHTTPRequestHandler):
                 user_id = self._user(params)
                 forced = trainer.by_id.get(params.get("problem"))
                 problem = forced or trainer.next_problem(user_id)
+                trainer.prefetch_explanation(problem)
                 self._json(200, {"problem": trainer.sanitized(problem),
                                  "topic": problem.get("topic")})
             elif path == "/api/hint":
@@ -179,9 +221,15 @@ class Handler(BaseHTTPRequestHandler):
             certainty = int(data.get("certainty") or 3)
             seconds = float(data.get("seconds") or 0)
             hint_rung_used = int(data.get("hint_rung") or 0)
+            overall_before = overall_rating(trainer.con, user_id)
+            correct = answer == problem["label"]
             result = record_attempt(trainer.con, user_id, problem, answer,
-                                    answer == problem["label"], certainty,
-                                    seconds, hint_rung_used)
+                                    correct, certainty, seconds, hint_rung_used)
+            overall_after = overall_rating(trainer.con, user_id)
+            result["overall_before"] = round(overall_before)
+            result["overall_after"] = round(overall_after)
+            if not correct:
+                result["explanation"] = trainer.take_explanation(problem)
             result["label"] = problem["label"]
             result["options"] = problem.get("options") or {}
             self._json(200, result)

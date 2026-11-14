@@ -85,6 +85,51 @@ def model_hint(problem, label, llm, timeout=20.0):
     return text, "ok"
 
 
+def explain_answer(problem, label, llm=None):
+    """After a wrong answer: a considerable explanation of the correct path.
+
+    The model walks through the solution in a few sentences (the answer is
+    already revealed, so no leak check). Falls back to the topic's strategy
+    cue when no model is reachable.
+    """
+    if llm is not None:
+        messages = [
+            {"role": "system",
+             "content": "You explain school math clearly and warmly. The "
+                        "student answered this problem wrong. In at most 4 "
+                        "short sentences, walk through how to think about it "
+                        "step by step and reach the correct answer. Plain "
+                        "text only: no markdown, no asterisks, no LaTeX, "
+                        "write math in words or plain numbers."},
+            {"role": "user",
+             "content": problem["text"] + f"\n\nThe correct answer is {label}."},
+        ]
+        try:
+            text = llm(messages, timeout=25.0).strip().strip('"')
+            text = clean_math_text(text)
+            words = text.split()
+            if len(words) > 120:
+                text = " ".join(words[:120]) + "..."
+            if text:
+                return {"text": text, "source": "model"}
+        except Exception:
+            pass
+    return {"text": strategy_cue(problem), "source": "strategy"}
+
+
+def clean_math_text(text):
+    """Small models love markdown and LaTeX; the page wants plain prose."""
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)      # **bold** -> bold
+    text = re.sub(r"\*([^*]+)\*", r"\1", text)          # *italic* -> italic
+    text = text.replace("\\cdot", " times ").replace("\\times", " times ")
+    text = re.sub(r"\$([^$]*)\$", r"\1", text)          # $x$ -> x
+    text = text.replace("\\(", " ").replace("\\)", " ")
+    text = re.sub(r"\\[a-zA-Z]+", " ", text)            # leftover \frac etc.
+    text = text.replace("{", " ").replace("}", " ")
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip()
+
+
 def hint_rung(rung, problem, label, index=None, problems=(), llm=None):
     """The ladder entry point. Returns a dict for the API."""
     if rung <= 1:

@@ -86,6 +86,23 @@ def problem_rating(con, problem_id, level, difficulty=0):
     return row["rating"] if row else problem_seed(level, difficulty)
 
 
+def overall_rating(con, user_id):
+    """The general ELO: the attempt-weighted mean of the topic ratings.
+
+    Practicing any one topic moves the general number at the same pace as
+    that topic's own rating (it dominates the mean early on), while the
+    topic ratings stay the real picture of ability per ability.
+    """
+    with LOCK:
+        rows = con.execute(
+            "SELECT rating, n FROM ratings WHERE user_id = ? AND n > 0",
+            (user_id,)).fetchall()
+    if not rows:
+        return USER_SEED
+    total = sum(r["n"] for r in rows)
+    return sum(r["rating"] * r["n"] for r in rows) / total
+
+
 def recent_seen(con, user_id, n=20):
     with LOCK:
         rows = con.execute(

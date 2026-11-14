@@ -6,61 +6,109 @@
 <title>Kangaroo Trainer</title>
 <style>
 :root { --bg:#0f1420; --card:#1a2232; --line:#2a3550; --text:#e8ecf4; --dim:#8b96ad;
-        --good:#3fb26f; --bad:#e05555; --accent:#5b8def; --warn:#e0a33f; }
+        --good:#3fb26f; --bad:#e05555; --accent:#5b8def; --warn:#e0a33f; --gold:#f2c14e; }
 * { box-sizing:border-box; margin:0; }
 body { background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
-.wrap { max-width:880px; margin:0 auto; padding:16px; }
-header { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
-h1 { font-size:19px; margin-right:auto; }
+.wrap { max-width:880px; margin:0 auto; padding:14px; }
+header { display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
+         gap:10px; margin-bottom:14px; }
+h1 { font-size:19px; }
 input, button { font:inherit; border-radius:8px; border:1px solid var(--line);
                 background:var(--card); color:var(--text); padding:7px 12px; }
 button { cursor:pointer; } button:hover { border-color:var(--accent); }
 button:disabled { opacity:.45; cursor:default; }
-input[name=user] { width:140px; }
+input[name=user] { width:130px; }
+.hdr-right { display:flex; gap:10px; justify-content:flex-end; align-items:center; }
+.timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
+
+/* the general Elo, top center */
+#elo-badge { position:relative; cursor:pointer; text-align:center;
+             background:var(--card); border:1px solid var(--line);
+             border-radius:12px; padding:6px 18px; min-width:130px;
+             transition:border-color .3s; }
+#elo-badge:hover { border-color:var(--accent); }
+#elo-label { font-size:11px; color:var(--dim); letter-spacing:.06em; }
+#elo-value { font-size:24px; font-weight:700; font-variant-numeric:tabular-nums;
+             transition:color .25s; }
+#elo-delta { font-size:13px; font-weight:700; margin-left:6px; opacity:0;
+             transition:opacity .3s; }
+#elo-delta.up { color:var(--good); opacity:1; }
+#elo-delta.down { color:var(--bad); opacity:1; }
+#elo-value.up { color:var(--good); } #elo-value.down { color:var(--bad); }
+#elo-pop { display:none; position:absolute; top:calc(100% + 8px); left:50%;
+           transform:translateX(-50%); width:420px; background:var(--card);
+           border:1px solid var(--line); border-radius:12px; padding:14px;
+           z-index:20; box-shadow:0 8px 30px rgba(0,0,0,.5); text-align:left; }
+#elo-pop.open { display:block; }
+#elo-pop h3 { font-size:13px; color:var(--dim); margin-bottom:8px; font-weight:600; }
+.bars .bar { display:flex; align-items:center; gap:8px; margin:4px 0; }
+.bars .name { width:96px; font-size:12px; color:var(--dim); }
+.bars .track { flex:1; height:10px; background:#0c111c; border-radius:5px; overflow:hidden; }
+.bars .fill { height:100%; background:var(--accent); border-radius:5px;
+              transition:width .5s; }
+.bars .val { width:96px; font-size:11px; color:var(--dim); text-align:right; }
+table.hist { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+table.hist td, table.hist th { padding:3px 5px; border-bottom:1px solid var(--line); text-align:left; }
+.good-text { color:var(--good); } .bad-text { color:var(--bad); }
+
 .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
-        padding:16px; margin-bottom:12px; }
+        padding:16px; }
 .chip { display:inline-block; background:#243048; border-radius:999px; padding:2px 10px;
         font-size:12px; color:var(--dim); margin-right:6px; }
+.chip.diff-easy { background:#1d3a2a; color:var(--good); }
+.chip.diff-medium { background:#3a331d; color:var(--warn); }
+.chip.diff-hard { background:#3a1d1d; color:var(--bad); }
 .muted { color:var(--dim); font-size:13px; }
 img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10px;
               display:block; background:#fff; }
 .opts { display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-top:12px; }
-.opts .muted { grid-column:1 / -1; }
-.opts button { min-width:64px; }
-.opts button.sel { border-color:var(--accent); background:#25406e; }
+.optbtn { display:flex; align-items:center; justify-content:center;
+          min-width:70px; padding:9px 14px; font-weight:600;
+          transition:background .25s, border-color .25s, transform .15s; }
+.optbtn.sel { border-color:var(--accent); background:#25406e; }
+.optbtn.good { border-color:var(--good); background:#1d3a2a; animation:pop .35s; }
+.optbtn.bad { border-color:var(--bad); background:#3a1d1d; animation:pop .35s; }
+.optbtn:disabled { opacity:1; }
+@keyframes pop { 40% { transform:scale(1.08); } }
 .sliders { display:flex; gap:10px; margin-top:12px; align-items:center; }
 .sliders input[type=range] { flex:0 0 180px; accent-color:var(--accent); }
-.optbtn { display:flex; align-items:center; justify-content:center;
-          min-width:70px; padding:8px 14px; font-weight:600; }
-.timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
 .row { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center; }
 .hint { border-left:3px solid var(--warn); padding:6px 10px; margin-top:10px;
         background:#2a2620; border-radius:0 8px 8px 0; }
 .hint .src { color:var(--dim); font-size:12px; }
-.verdict { font-size:17px; font-weight:700; margin-bottom:6px; }
-.verdict.good { color:var(--good); } .verdict.bad { color:var(--bad); }
-.bars .bar { display:flex; align-items:center; gap:8px; margin:5px 0; }
-.bars .name { width:110px; font-size:13px; color:var(--dim); }
-.bars .track { flex:1; height:12px; background:#0c111c; border-radius:6px; overflow:hidden; }
-.bars .fill { height:100%; background:var(--accent); border-radius:6px; }
-.bars .val { width:110px; font-size:12px; color:var(--dim); text-align:right; }
-table.hist { width:100%; border-collapse:collapse; font-size:13px; }
-table.hist td, table.hist th { padding:4px 6px; border-bottom:1px solid var(--line); text-align:left; }
-.good-text { color:var(--good); } .bad-text { color:var(--bad); }
-#status { color:var(--dim); font-size:13px; min-height:18px; }
+.explain { border-left:3px solid var(--good); padding:8px 12px; margin-top:12px;
+           background:#1d2a24; border-radius:0 8px 8px 0; white-space:pre-wrap; }
+.explain .src { color:var(--dim); font-size:12px; }
+#verdict { margin-top:14px; }
+.verdict-line { font-size:16px; font-weight:700; }
+.verdict-line.good { color:var(--good); } .verdict-line.bad { color:var(--bad); }
+#confetti { position:fixed; inset:0; pointer-events:none; z-index:50; display:none; }
+#status { color:var(--dim); font-size:13px; min-height:18px; margin-top:6px; }
 </style>
 </head>
 <body>
+<canvas id="confetti"></canvas>
 <div class="wrap">
 <header>
   <h1>🦘 Kangaroo Trainer</h1>
-  <input name="user" placeholder="your name" value="guest">
-  <button id="btn-stats">My progress</button>
-  <span class="timer" id="timer"></span>
+  <div id="elo-badge" title="Your general Elo — click for the per-topic ratings">
+    <div id="elo-label">GENERAL ELO</div>
+    <span id="elo-value">800</span><span id="elo-delta"></span>
+    <div id="elo-pop">
+      <h3>Your ratings per topic</h3>
+      <div class="bars" id="bars"></div>
+      <h3 style="margin-top:10px">Recent attempts</h3>
+      <table class="hist" id="hist"></table>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <input name="user" placeholder="your name" value="guest">
+    <span class="timer" id="timer"></span>
+  </div>
 </header>
 <div id="status">Loading…</div>
 
-<div class="card" id="problem-card" style="display:none">
+<div class="card" id="problem-card">
   <div><span class="chip" id="p-topic"></span><span class="chip" id="p-diff"></span>
        <span class="chip" id="p-level"></span>
        <span class="chip" id="p-id"></span></div>
@@ -76,23 +124,11 @@ table.hist td, table.hist th { padding:4px 6px; border-bottom:1px solid var(--li
     <button id="btn-answer" disabled>Answer</button>
     <button id="btn-hint">Get a hint</button>
     <button id="btn-reveal" style="display:none">Reveal the answer</button>
+    <button id="btn-next" style="display:none">Next problem →</button>
     <button id="btn-skip">Skip</button>
   </div>
   <div id="hint-box"></div>
-</div>
-
-<div class="card" id="result-card" style="display:none">
-  <div class="verdict" id="v-verdict"></div>
-  <div id="v-detail"></div>
-  <div class="row"><button id="btn-next">Next problem →</button></div>
-</div>
-
-<div class="card" id="stats-card" style="display:none">
-  <h2 style="font-size:16px; margin-bottom:8px">Your ratings per topic</h2>
-  <div class="bars" id="bars"></div>
-  <h2 style="font-size:16px; margin:14px 0 8px">Recent attempts</h2>
-  <table class="hist" id="hist"></table>
-  <div class="row"><button id="btn-back">← Back to practicing</button></div>
+  <div id="verdict" style="display:none"></div>
 </div>
 </div>
 
@@ -101,15 +137,71 @@ table.hist td, table.hist th { padding:4px 6px; border-bottom:1px solid var(--li
 const LETTERS = ["A","B","C","D","E"];
 const SURE = ["a guess","not sure","thinking","quite sure","totally sure"];
 const user = () => document.querySelector("input[name=user]").value.trim() || "guest";
-let problem = null, certainty = 3, choice = null, startTs = 0, hintRung = 0, timerId = null;
+let problem = null, certainty = 3, choice = null, startTs = 0, hintRung = 0,
+    timerId = null, overall = 800, answered = false;
 const $ = id => document.getElementById(id);
 const show = (el, on) => el.style.display = on ? "" : "none";
 
 function setStatus(t){ $("status").textContent = t; }
-
 function setCertainty(v){
   certainty = parseInt(v, 10);
   $("certainty-label").textContent = SURE[certainty - 1];
+}
+
+/* ---- the general Elo: tween, flash, milestone confetti ---- */
+function setOverall(from, to){
+  const el = $("elo-value"), delta = $("elo-delta");
+  const wentUp = to > from, wentDown = to < from;
+  const t0 = performance.now(), DUR = 900;
+  cancelAnimationFrame(setOverall._raf);
+  (function step(now){
+    const k = Math.min(1, (now - t0) / DUR);
+    const ease = 1 - Math.pow(1 - k, 3);           // ease-out cubic
+    el.textContent = Math.round(from + (to - from) * ease);
+    if (k < 1) setOverall._raf = requestAnimationFrame(step);
+  })(t0);
+  el.classList.remove("up","down");
+  delta.classList.remove("up","down");
+  if (wentUp || wentDown){
+    el.classList.add(wentUp ? "up" : "down");
+    delta.textContent = (wentUp ? "+" : "") + (to - from);
+    delta.classList.add(wentUp ? "up" : "down");
+    setTimeout(() => delta.classList.remove("up","down"), 2600);
+  }
+  if (Math.floor(to / 100) > Math.floor(from / 100)) confetti();  // milestone
+}
+
+/* ---- confetti, no dependencies ---- */
+function confetti(){
+  const c = $("confetti"), ctx = c.getContext("2d");
+  c.width = innerWidth; c.height = innerHeight;
+  show(c, true);
+  const colors = ["#f2c14e","#3fb26f","#5b8def","#e05555","#e8ecf4"];
+  const parts = Array.from({length: 140}, () => ({
+    x: Math.random() * c.width,
+    y: -20 - Math.random() * c.height * 0.3,
+    w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+    vy: 2.2 + Math.random() * 2.6, vx: -1.6 + Math.random() * 3.2,
+    rot: Math.random() * Math.PI, vr: -0.12 + Math.random() * 0.24,
+    color: colors[(Math.random() * colors.length) | 0],
+  }));
+  const t0 = performance.now();
+  cancelAnimationFrame(confetti._raf);
+  (function frame(now){
+    ctx.clearRect(0, 0, c.width, c.height);
+    const age = now - t0;
+    for (const p of parts){
+      p.x += p.vx; p.y += p.vy; p.vy += 0.03; p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.globalAlpha = Math.max(0, 1 - age / 2200);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    if (age < 2400) confetti._raf = requestAnimationFrame(frame);
+    else show(c, false);
+  })(t0);
 }
 
 async function api(url, opts){
@@ -127,17 +219,18 @@ function startTimer(){
 }
 
 async function next(){
-  show($("result-card"), false); show($("stats-card"), false); show($("problem-card"), false);
   setStatus("Choosing a problem…");
   try {
     const forced = new URLSearchParams(location.search).get("problem");
     const data = await api(`/api/next?user=${encodeURIComponent(user())}` +
                            (forced ? `&problem=${forced}` : ""));
     problem = data.problem;
-    hintRung = 0; choice = null;
+    answered = false; hintRung = 0; choice = null;
     $("certainty").value = 3; setCertainty(3);
     $("p-topic").textContent = data.topic;
-    $("p-diff").textContent = ["easy","medium","hard"][problem.difficulty || 0];
+    const diffNames = ["easy","medium","hard"];
+    $("p-diff").textContent = diffNames[problem.difficulty || 0];
+    $("p-diff").className = "chip diff-" + diffNames[problem.difficulty || 0];
     $("p-level").textContent = "level " + (problem.level ?? "?");
     $("p-id").textContent = problem.id;
     $("p-text").textContent = problem.text;
@@ -149,50 +242,76 @@ async function next(){
     // problem image above.
     LETTERS.forEach(l => {
       const b = document.createElement("button");
-      b.className = "optbtn";
+      b.className = "optbtn"; b.dataset.letter = l;
       b.textContent = `${l})`;
-      b.onclick = () => { choice = l;
+      b.onclick = () => { if (answered) return; choice = l;
         [...opts.children].forEach(x => x.classList.toggle("sel", x === b));
         $("btn-answer").disabled = false; };
       opts.appendChild(b);
     });
     $("hint-box").innerHTML = "";
-    show($("btn-reveal"), false);
+    show($("verdict"), false);
+    show($("btn-reveal"), false); show($("btn-next"), false); show($("btn-skip"), true);
     $("btn-hint").disabled = false;
     $("btn-answer").disabled = true;
     $("timer").textContent = "";
-    show($("problem-card"), true);
     setStatus("");
     startTimer();
   } catch (e){ setStatus("Error: " + e.message); }
 }
 
 async function answer(){
-  if (!choice || !problem) return;
+  if (!choice || !problem || answered) return;
   const seconds = (Date.now() - startTs)/1000;
+  answered = true;
   $("btn-answer").disabled = true;
+  $("btn-hint").disabled = true;
+  show($("btn-reveal"), false);
+  setStatus("");
   try {
     const r = await api("/api/answer", { method:"POST",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ user:user(), problem:problem.id, answer:choice,
                              certainty, seconds, hint_rung:hintRung })});
     clearInterval(timerId);
-    const v = $("v-verdict");
-    v.textContent = r.correct ? "✔ Correct!" : "✘ Not quite";
-    v.className = "verdict " + (r.correct ? "good" : "bad");
+    // paint the buttons: chosen green/red, and the correct one green too
+    const buttons = [...$("p-opts").children];
+    buttons.forEach(b => {
+      b.disabled = true;
+      b.classList.remove("sel");
+      if (b.dataset.letter === r.label) b.classList.add("good");
+      if (b.dataset.letter === choice && !r.correct) b.classList.add("bad");
+    });
     const delta = Math.round(r.elo_after - r.elo_before);
-    $("v-detail").innerHTML =
-      `Correct answer: <b>${r.label}</b>${r.options[r.label] ? " (" + r.options[r.label] + ")" : ""} · ` +
-      `topic <b>${r.topic}</b> · rating ${Math.round(r.elo_before)} → <b>${Math.round(r.elo_after)}</b> ` +
+    const v = $("verdict");
+    v.innerHTML =
+      `<div class="verdict-line ${r.correct ? "good" : "bad"}">` +
+      `${r.correct ? "✔ Correct!" : "✘ Not quite"}` +
+      `</div>` +
+      `<div class="muted">${problem.id} · topic <b>${r.topic}</b> · ` +
+      `topic rating ${Math.round(r.elo_before)} → <b>${Math.round(r.elo_after)}</b> ` +
       `<span class="${delta >= 0 ? "good-text" : "bad-text"}">(${delta >= 0 ? "+" : ""}${delta})</span>` +
-      (hintRung ? ` · with ${hintRung} hint${hintRung > 1 ? "s" : ""}` : "");
-    show($("problem-card"), false); show($("result-card"), true);
-    setStatus("");
-  } catch (e){ setStatus("Error: " + e.message); $("btn-answer").disabled = false; }
+      (hintRung ? ` · with ${hintRung} hint${hintRung > 1 ? "s" : ""}` : "") +
+      `</div>`;
+    if (r.explanation){
+      v.insertAdjacentHTML("beforeend",
+        `<div class="explain"><span class="src">Why the answer is ${r.label} ` +
+        `(${r.explanation.source}):</span><br>${r.explanation.text}</div>`);
+    }
+    show($("verdict"), true);
+    show($("btn-next"), true); show($("btn-skip"), false);
+    setOverall(r.overall_before, r.overall_after);
+    v.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (e){
+    setStatus("Error: " + e.message);
+    answered = false;
+    $("btn-answer").disabled = false;
+    $("btn-hint").disabled = false;
+  }
 }
 
 async function hint(){
-  if (!problem) return;
+  if (!problem || answered) return;
   $("btn-hint").disabled = true;
   hintRung += 1;
   setStatus("Getting hint " + hintRung + "…");
@@ -205,7 +324,7 @@ async function hint(){
       box.insertAdjacentHTML("beforeend",
         `<div class="hint"><span class="src">Rung 1 · a similar solved problem (${r.source}):</span><br>` +
         `${n.text}<br><details><summary>Show its answer</summary> ` +
-        `<b>${n.label}</b>${n.options && n.options[n.label] ? " (" + n.options[n.label] + ")" : ""}</details></div>`);
+        `<b>${n.label}</b></details></div>`);
     } else if (r.rung === 2){
       box.insertAdjacentHTML("beforeend",
         `<div class="hint"><span class="src">Rung 2 · the method:</span><br>${r.text}</div>`);
@@ -223,10 +342,11 @@ async function hint(){
   } catch (e){ setStatus("Error: " + e.message); hintRung -= 1; $("btn-hint").disabled = false; }
 }
 
-async function stats(){
-  show($("problem-card"), false); show($("result-card"), false);
+async function refreshPopover(){
   try {
     const s = await api(`/api/stats?user=${encodeURIComponent(user())}`);
+    overall = s.overall;
+    $("elo-value").textContent = s.overall;
     const bars = $("bars"); bars.innerHTML = "";
     const entries = Object.entries(s.ratings).sort((a,b) => a[0].localeCompare(b[0]));
     const lo = 600, hi = 1100;
@@ -238,25 +358,31 @@ async function stats(){
         `<span class="val">${v.rating} · ${v.n} tried</span></div>`);
     });
     const h = $("hist");
-    h.innerHTML = "<tr><th>problem</th><th>topic</th><th>result</th><th>sure</th><th>time</th><th>hints</th></tr>" +
-      s.attempts.map(a =>
+    h.innerHTML = "<tr><th>problem</th><th>topic</th><th></th><th>sure</th><th>time</th></tr>" +
+      s.attempts.slice(0, 8).map(a =>
         `<tr><td>${a.problem}</td><td>${a.topic}</td>` +
         `<td class="${a.correct ? "good-text" : "bad-text"}">${a.correct ? "✔" : "✘"}</td>` +
-        `<td>${a.certainty}/5</td><td>${a.seconds}s</td><td>${a.hint_rung || ""}</td></tr>`).join("");
-    show($("stats-card"), true);
-    setStatus("");
-  } catch (e){ setStatus("Error: " + e.message); }
+        `<td>${a.certainty}/5</td><td>${a.seconds}s</td></tr>`).join("");
+  } catch (e){ /* the popover just stays as it is */ }
 }
+
+$("elo-badge").onclick = async () => {
+  const pop = $("elo-pop");
+  const open = !pop.classList.contains("open");
+  pop.classList.toggle("open", open);
+  if (open) await refreshPopover();
+};
+document.addEventListener("click", e => {
+  if (!$("elo-badge").contains(e.target)) $("elo-pop").classList.remove("open");
+});
 
 setCertainty(3);
 $("certainty").addEventListener("input", e => setCertainty(e.target.value));
 $("btn-answer").onclick = answer;
 $("btn-hint").onclick = hint;
 $("btn-reveal").onclick = () => { hintRung = 4; hint(); show($("btn-reveal"), false); };
-$("btn-skip").onclick = next;
 $("btn-next").onclick = next;
-$("btn-stats").onclick = stats;
-$("btn-back").onclick = next;
+$("btn-skip").onclick = next;
 next();
 </script>
 </body>
