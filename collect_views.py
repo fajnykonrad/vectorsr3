@@ -23,10 +23,12 @@ import urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from copilot.config import CONFIG, ROOT  # noqa: E402
-from copilot.llm import URL as DEFAULT_URL, answer_distribution  # noqa: E402
+from copilot.llm import answer_distribution  # noqa: E402
 from copilot.views import VIEWS, reverse_options  # noqa: E402
 
 TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
+# the BASE url of your llama-server; collect_views appends /v1/chat/completions
+DEFAULT_URL = f"http://127.0.0.1:{CONFIG['LLM_PORT']}"
 
 
 def parse_args():
