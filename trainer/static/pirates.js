@@ -140,11 +140,12 @@
             Math.round(x - 22 - cam), GROUND_Y - 25 + bob);   // hull on the waterline
       return;
     }
-    /* the ship stays anchored at the shoreline once they disembark */
-    const ax = SHORE_X - 48 - cam;
+    /* the ship stays beached at the shoreline once they disembark:
+       bottom-left corner at (270, 38), hull resting in the shallows */
+    const ax = 270 - cam;
     if (ax > -46 && ax < VIEW_W)
       sheet("ship-anchor.png", Math.floor(t * MANIFEST["ship-anchor.png"].fps),
-            Math.round(ax), GROUND_Y - 25 + Math.round(Math.sin(t * 2.2) * 1));
+            Math.round(ax), 38 - 26 + Math.round(Math.sin(t * 2.2) * 1));
     const fighting = eloShown >= 1860 && eloShown < 2400;   // the castle region
     const celebrating = eloShown >= 2400;
     const idleSheet = sheets["pirate-idle.png"] && sheets["pirate-idle.png"].img.complete;
