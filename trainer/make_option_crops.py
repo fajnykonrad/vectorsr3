@@ -30,7 +30,9 @@ WORKERS = 6
 
 
 def marker_positions(items):
-    """The (letter, x, y) of the last in-order A..E run, or None."""
+    """The (letter, x, y, w) of the last in-order A..E run, or None.
+
+    w is the marker box width, so the content can start after the letter."""
     seq = []
     for it in items:
         m = MARKER.match(it["text"])
@@ -40,15 +42,15 @@ def marker_positions(items):
         # a marker is "A", "A)", "A)12" or "A12": a letter with nothing but a
         # value after it. Words like "ADA" do not count.
         if paren or rest == "" or re.match(r"^[-+−\d]", rest):
-            seq.append((letter, int(it["x"]), it["y"]))
+            seq.append((letter, int(it["x"]), it["y"], int(it.get("w") or 0)))
     for start in range(len(seq) - 1, -1, -1):
         if seq[start][0] != "A":
             continue
         found, marks = {}, []
-        for letter, x, y in seq[start:]:
+        for letter, x, y, w in seq[start:]:
             if letter not in found:
-                found[letter] = (x, y)
-                marks.append((letter, x, y))
+                found[letter] = (x, y, w)
+                marks.append((letter, x, y, w))
             if len(found) == 5:
                 return marks
             if len(found) < len(marks):  # a repeated letter: this run is broken
@@ -75,15 +77,19 @@ def crop_options(image_bytes, threads):
         return None
     height = strip.shape[0]
     width = strip.shape[1]
-    xs = [x for _letter, x, _y in marks]
-    ys = [y for _letter, _x, y in marks]
-    # The layout is "A) <content> B) <content> ...", so option i's content
-    # sits between its own marker and the next one. Slice there, then trim
-    # the white margins off each piece.
-    bounds = [max(0, xs[0] - PAD)] + [x - PAD for x in xs[1:]] + [width]
+    xs = [x for _letter, x, _y, _w in marks]
+    ys = [y for _letter, _x, y, _w in marks]
+    ws = [w for _letter, _x, _y, w in marks]
+    # The layout is "A) <content> B) <content> ...". Option i's content sits
+    # between the right edge of its own letter and the left edge of the next
+    # letter, so the letter itself is cropped out of the picture.
+    starts = [x + w + 2 for x, w in zip(xs, ws)]
+    ends = [x - PAD for x in xs[1:]] + [width]
     crops = []
     for i in range(5):
-        piece = strip[:, bounds[i]:bounds[i + 1]]
+        left = max(0, starts[i])
+        right = max(left + 8, ends[i])
+        piece = strip[:, left:right]
         if piece.shape[1] < 8:  # overlapping or out-of-order markers
             return None
         columns = np.where(np.any(piece < 245, axis=(0, 2)))[0]

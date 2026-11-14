@@ -82,7 +82,8 @@ def reading_order(boxes):
     for box, text, _score in boxes:
         ys = [pt[1] for pt in box]
         xs = [pt[0] for pt in box]
-        items.append({"x": min(xs), "y": (min(ys) + max(ys)) / 2, "h": max(ys) - min(ys), "text": text})
+        items.append({"x": min(xs), "w": max(xs) - min(xs),
+                      "y": (min(ys) + max(ys)) / 2, "h": max(ys) - min(ys), "text": text})
     items.sort(key=lambda it: it["y"])
     rows, current = [], []
     for it in items:
