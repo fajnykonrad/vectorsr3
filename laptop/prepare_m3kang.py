@@ -153,7 +153,16 @@ def ocr_init(threads):
 
 
 def ocr_one(item):
-    key, image = item
+    key, image, text_only = item
+    if not text_only:
+        # Figure problems: the options row is at the bottom, and the rest of
+        # the image is what makes OCR slow. Crop to the bottom half. The
+        # result stays {} for options that are pictures, as before.
+        import cv2
+        import numpy as np
+        arr = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
+        if arr is not None:
+            image = arr[arr.shape[0] // 2:]
     boxes, _ = _OCR(image)
     return {"key": key, "options": parse_options(boxes or [])}
 
@@ -194,7 +203,8 @@ def main():
 
     def flush(block):
         if pool is not None:
-            todo = [(key, image) for _r, key, image in block if key not in cache]
+            todo = [(key, image, bool(r.get("text_only")))
+                    for r, key, image in block if key not in cache]
             for res in pool.imap(ocr_one, todo):
                 cache[res["key"]] = res["options"]
                 cache_file.write(json.dumps(res, ensure_ascii=False) + "\n")

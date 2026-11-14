@@ -27,9 +27,11 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 .opts { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
 .opts button { min-width:64px; }
 .opts button.sel { border-color:var(--accent); background:#25406e; }
-.sliders { display:flex; gap:6px; margin-top:12px; align-items:center; flex-wrap:wrap; }
-.sliders button { min-width:38px; padding:7px 0; font-weight:600; }
-.sliders button.sel { border-color:var(--accent); background:#25406e; }
+.sliders { display:flex; gap:10px; margin-top:12px; align-items:center; }
+.sliders input[type=range] { flex:0 0 180px; accent-color:var(--accent); }
+.optbtn { display:flex; flex-direction:column; align-items:center; gap:4px;
+          min-width:70px; max-width:220px; padding:8px; }
+.optbtn img { max-width:180px; max-height:90px; background:#fff; border-radius:6px; }
 .timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
 .row { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center; }
 .hint { border-left:3px solid var(--warn); padding:6px 10px; margin-top:10px;
@@ -64,8 +66,10 @@ table.hist td, table.hist th { padding:4px 6px; border-bottom:1px solid var(--li
   <div id="p-text" style="margin-top:10px; white-space:pre-wrap"></div>
   <img class="problem" id="p-img" style="display:none">
   <div class="opts" id="p-opts"></div>
-  <div class="sliders" id="certainty">
+  <div class="sliders">
     <span class="muted">How sure?</span>
+    <input type="range" id="certainty" min="1" max="5" step="1" value="3">
+    <span class="chip" id="certainty-label">thinking</span>
   </div>
   <div class="row">
     <button id="btn-answer" disabled>Answer</button>
@@ -102,17 +106,9 @@ const show = (el, on) => el.style.display = on ? "" : "none";
 
 function setStatus(t){ $("status").textContent = t; }
 
-function buildSliders(){
-  const box = $("certainty");
-  for (let i = 1; i <= 5; i++){
-    const b = document.createElement("button");
-    b.textContent = i; b.title = SURE[i-1];
-    b.onclick = () => { certainty = i;
-      [...box.querySelectorAll("button")].forEach((x,j) =>
-        x.classList.toggle("sel", j === i-1)); };
-    box.appendChild(b);
-  }
-  [...box.querySelectorAll("button")][2].classList.add("sel");
+function setCertainty(v){
+  certainty = parseInt(v, 10);
+  $("certainty-label").textContent = SURE[certainty - 1];
 }
 
 async function api(url, opts){
@@ -133,9 +129,12 @@ async function next(){
   show($("result-card"), false); show($("stats-card"), false); show($("problem-card"), false);
   setStatus("Choosing a problem…");
   try {
-    const data = await api(`/api/next?user=${encodeURIComponent(user())}`);
+    const forced = new URLSearchParams(location.search).get("problem");
+    const data = await api(`/api/next?user=${encodeURIComponent(user())}` +
+                           (forced ? `&problem=${forced}` : ""));
     problem = data.problem;
-    hintRung = 0; choice = null; certainty = 3;
+    hintRung = 0; choice = null;
+    $("certainty").value = 3; setCertainty(3);
     $("p-topic").textContent = data.topic;
     $("p-level").textContent = "level " + (problem.level ?? "?");
     $("p-id").textContent = problem.id;
@@ -145,11 +144,22 @@ async function next(){
     else { img.src = `/image/${problem.id}_${problem.language}.png`; show(img, true); }
     const opts = $("p-opts"); opts.innerHTML = "";
     const keys = Object.keys(problem.options || {});
-    if (keys.length){
+    const images = problem.option_images || {};
+    const anyImages = LETTERS.some(l => images[l]);
+    if (keys.length || anyImages){
       LETTERS.forEach(l => {
-        if (!(l in problem.options)) return;
+        if (!(l in problem.options) && !images[l]) return;
         const b = document.createElement("button");
-        b.textContent = `${l}) ${problem.options[l]}`;
+        b.className = "optbtn";
+        if (images[l]){
+          const img = document.createElement("img");
+          img.src = `/image/${images[l]}`;
+          img.alt = `option ${l}`;
+          b.appendChild(img);
+        }
+        const label = document.createElement("span");
+        label.textContent = `${l})` + (keys.includes(l) ? ` ${problem.options[l]}` : "");
+        b.appendChild(label);
         b.onclick = () => { choice = l;
           [...opts.children].forEach(x => x.classList.toggle("sel", x === b));
           $("btn-answer").disabled = false; };
@@ -253,7 +263,8 @@ async function stats(){
   } catch (e){ setStatus("Error: " + e.message); }
 }
 
-buildSliders();
+setCertainty(3);
+$("certainty").addEventListener("input", e => setCertainty(e.target.value));
 $("btn-answer").onclick = answer;
 $("btn-hint").onclick = hint;
 $("btn-reveal").onclick = () => { hintRung = 4; hint(); show($("btn-reveal"), false); };

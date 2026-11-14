@@ -67,11 +67,25 @@ class Trainer:
         self.con = connect(db_path)
         self.index = make_index(index_path)
         self.rng = random.Random(42)
-        print(f"{len(self.problems)} problems, index: {'yes' if self.index else 'no'}")
+        self.option_crops = self.load_option_crops(data_dir)
+        print(f"{len(self.problems)} problems, index: {'yes' if self.index else 'no'}, "
+              f"option crops: {len(self.option_crops)}")
+
+    @staticmethod
+    def load_option_crops(data_dir):
+        path = os.path.join(data_dir, "option_crops.json")
+        if not os.path.exists(path):
+            return {}
+        with open(path) as f:
+            return json.load(f)
 
     def sanitized(self, problem):
         """What the browser may see: no label, no split."""
-        return {k: v for k, v in problem.items() if k not in ("label", "split")}
+        clean = {k: v for k, v in problem.items() if k not in ("label", "split")}
+        # for picture options: the per-letter crop images, when we have them
+        crops = self.option_crops.get(f"{problem['id']}|{problem['language']}")
+        clean["option_images"] = crops or None
+        return clean
 
     def next_problem(self, user_id):
         rating_map = {t: v[0] for t, v in user_ratings(self.con, user_id).items()}
@@ -140,7 +154,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(200, f.read(), "image/png")
             elif path == "/api/next":
                 user_id = self._user(params)
-                problem = trainer.next_problem(user_id)
+                forced = trainer.by_id.get(params.get("problem"))
+                problem = forced or trainer.next_problem(user_id)
                 self._json(200, {"problem": trainer.sanitized(problem),
                                  "topic": problem.get("topic")})
             elif path == "/api/hint":
