@@ -16,7 +16,7 @@ The challenge of the Datathon FME 2026 is:
 
 > Design and build a Math copilot that runs entirely on the Arduino UNO Q and uses M3Kang in an innovative way to help students learn to reason mathematically.
 
-Your copilot must do one of these two things:
+Your copilot must do both of these two things:
 
 * **Teach**: It must turn that ability into an experience that sparks curiosity and guides the student without giving away the answer, for example through hints, adaptive practice, error analysis, physical interaction or collaboration.
 * **Reason**: When given a Kangaroo-style problem, it must be able to choose the correct answer. Organizers will measure this objectively on a hidden test set.
