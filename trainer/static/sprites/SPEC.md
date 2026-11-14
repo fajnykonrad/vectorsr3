@@ -1,5 +1,45 @@
 # Sprite Sheet Spec — Kangaroo Trainer pirate world
 
+## REVISION: background art direction (redo background-1..5 with this style)
+
+The user reviewed the first background frames and wants them redone. The
+style must MATCH the pirate sprite sheets you made — same pixel language,
+same palette, same outlines:
+
+1. **Style match**: every drawn shape (wave bumps, dunes, bricks, houses,
+   castle, gold) carries a 1px `#20222c` outline on its silhouette and flat
+   2-3 shade fills, exactly like the pirate sprites. No soft gradients
+   inside shapes.
+2. **REMOVE the loose object sprites**: no clouds, no trees, no palm, no
+   bushes, no fences anywhere. Detail comes from texture and structure, not
+   from pasted-on props. (Architecture is allowed: one outlined house
+   facade in the town, the castle wall, gate arch, banners, torch sconces.)
+3. **More detail through texture**:
+   - Sea: 4-5 wave rows, each a run of OUTLINED wave bumps (rounded crest
+     ~5px wide, white 1px tip), two blues mixing per row.
+   - Beach: outlined dune curves, sand speckles, shells, starfish,
+     footprints, pebbles — all with 1px outlines like the sprites.
+   - Grass: outlined grass tufts (3px diagonal blades), wheat runs.
+   - Town: brick pavement floor, one detailed outlined house facade.
+   - Walls: castle wall with outlined crenellations, gate arch, banners,
+     torch sconces.
+   - Treasure: wooden plank wall, 2 outlined framed paintings, mounted
+     shield + cutlass, outlined coin mounds.
+4. **HORIZON**: the surface line (sea level, beach top, grass top, town
+   floor top, castle ground) must be at the SAME y in every phase. Pick
+   one y and keep every ground start there — the horizon may not shift
+   between phases.
+5. **JAGGED transitions**: every biome boundary must be a jagged,
+   multi-step edge — staggered 2-3px teeth and dither steps, NOT one
+   straight vertical line. Sea->sand: jagged wet-sand edge. Sand->grass:
+   jagged dither band with grass tufts overhanging the sand. Grass->town:
+   jagged curb stones. Wall->courtyard: jagged stone edge.
+6. **Keep everything else** from the first background spec: sky gradient
+   until the beach then uniform daylight, no sky after the wall, flat
+   sand (no gradient), brick pavements, red carpet with yellow borders on
+   wooden planks, decorated wooden treasure wall, 5-frame loop with only
+   waves/foam moving, and NO characters.
+
 ## NEW DELIVERABLE: background frames (background-1.png .. background-5.png)
 
 Five frames of the ENTIRE 1280x60 world background, **no characters

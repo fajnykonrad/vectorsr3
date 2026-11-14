@@ -7,11 +7,12 @@ toward what happened. Problems start at 800 + 150 per level, users at 800.
 """
 import math
 
-USER_SEED = 800.0
+const USER_SEED = 800.0
 K_USER_NEW = 56.0    # first attempts in a topic: learn fast
 K_USER = 40.0
 K_PROBLEM = 8.0      # problems move less: their difficulty is mostly the level
 NEW_TOPICS = 10      # attempts before a topic counts as known
+ELO_STEP_MAX = 20.0  # a single answer moves the user's rating about +-20
 
 # Certainty is the slider, 1 (a guess) to 5 (sure). Correct answers score
 # above 0.5, wrong ones below, and certainty sets how far from the middle:
@@ -70,8 +71,15 @@ def expected(user_rating, problem_rating):
 
 
 def update(user_rating, problem_rating, score, attempts_in_topic=NEW_TOPICS):
-    """Return the new (user_rating, problem_rating) after one attempt."""
+    """Return the new (user_rating, problem_rating) after one attempt.
+
+    The user's move is capped at about +-20 per answer, so a correct one
+    lifts the rating roughly 20 points and a blunder costs at most that,
+    scaled by certainty through the score.
+    """
     e = expected(user_rating, problem_rating)
     k = K_USER_NEW if attempts_in_topic < NEW_TOPICS else K_USER
-    return (user_rating + k * (score - e),
+    delta = k * (score - e)
+    delta = max(-ELO_STEP_MAX, min(ELO_STEP_MAX, delta))
+    return (user_rating + delta,
             problem_rating + K_PROBLEM * (e - score))

@@ -118,6 +118,14 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 </div>
 <div id="status">Loading…</div>
 
+<div class="card" id="dev-row" style="border-style:dashed">
+  <div class="sliders">
+    <span class="muted">TEMP — test Elo:</span>
+    <input type="range" id="dev-elo" min="300" max="2700" step="10" value="800">
+    <span class="chip" id="dev-elo-label">800</span>
+  </div>
+</div>
+
 <div class="card" id="problem-card">
   <div><span class="chip" id="p-topic"></span><span class="chip" id="p-year"></span>
        <span class="chip" id="p-level"></span>
@@ -323,6 +331,7 @@ async function answer(){
     show($("verdict"), true);
     show($("btn-next"), true); show($("btn-skip"), false);
     setOverall(r.overall_before, r.overall_after);
+    overall = r.overall_after;
     v.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (e){
     setStatus("Error: " + e.message);
@@ -402,6 +411,13 @@ document.addEventListener("click", e => {
 setCertainty(3);
 if (window.Pirates) Pirates.init();
 $("certainty").addEventListener("input", e => setCertainty(e.target.value));
+/* TEMP: the Elo test slider (delete me) */
+$("dev-elo").addEventListener("input", e => {
+  const v = parseInt(e.target.value, 10);
+  $("dev-elo-label").textContent = v;
+  setOverall(overall, v);
+  overall = v;
+});
 $("btn-answer").onclick = answer;
 $("btn-hint").onclick = hint;
 $("btn-reveal").onclick = () => { hintRung = 4; hint(); show($("btn-reveal"), false); };

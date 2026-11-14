@@ -29,6 +29,13 @@
   let elo = 800, eloShown = 800, eloTarget = 800, tweenT0 = 0, tweenDur = 0;
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const smooth = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+  const RGB = hex => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16),
+                      parseInt(hex.slice(5, 7), 16)];
+  const mix = (a, b, t) => [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t)];
   const eloToX = e => clamp(e - ELO_BASE, 0, ELO_PER_ZONE * ZONES) * PX_PER_ELO;
   const zoneOf = x => clamp(Math.floor(x / ELO_PER_ZONE / PX_PER_ELO), 0, ZONES - 1);
   const shoreElo = ELO_BASE + SHORE_X / PX_PER_ELO;      // ~804
@@ -42,6 +49,9 @@
     "knight-fight.png": { frames: 3, frameW: 16, frameH: 18, fps: 10 },
     "ship-sail.png":    { frames: 4, frameW: 44, frameH: 26, fps: 8 },
     "ship-anchor.png":  { frames: 2, frameW: 44, frameH: 26, fps: 4 },
+    "palm.png":         { frames: 1, frameW: 32, frameH: 32, fps: 1 },
+    "bush.png":         { frames: 1, frameW: 32, frameH: 32, fps: 1 },
+    "barrel.png":       { frames: 1, frameW: 32, frameH: 32, fps: 1 },
   };
   const bgFrames = [];
   const sheets = {};
@@ -85,30 +95,55 @@
     }
   }
 
-  /* ---------------- the crew ---------------- */
+  /* ---------------- scenery and the crew ---------------- */
+
+  function drawProps(cam) {
+    /* user-made scenery, half size, feet on the horizon line */
+    const put = (name, wx) => {
+      const s = sheets[name];
+      if (!s || !s.img.complete) return;
+      const sx = Math.round(wx - cam);
+      if (sx < -18 || sx > VIEW_W) return;
+      ctx.drawImage(s.img, 0, 0, s.frameW, s.frameH, sx, GROUND_Y - 16, 16, 16);
+    };
+    put("palm.png", 350);     // the beach
+    put("bush.png", 500);     // the grass boundary
+    put("barrel.png", 730);   // the town pavement
+  }
 
   function drawCrew(cam, t, moving) {
-    const x = eloToX(eloShown);
+    /* the crew never walks off the right edge, even at max Elo */
+    const x = Math.min(eloToX(eloShown), WORLD_W - 26);
     const onLand = x >= SHORE_X;
+    const baseY = VIEW_H - 30;                      // feet 12px from the bottom
     if (!onLand) {
       const bob = Math.round(Math.sin(t * 2.2) * 1);
-      sheet("ship-sail", Math.floor(t * MANIFEST["ship-sail.png"].fps),
+      sheet("ship-sail.png", Math.floor(t * MANIFEST["ship-sail.png"].fps),
             Math.round(x - 22 - cam), GROUND_Y - 25 + bob);   // hull on the waterline
       return;
     }
     /* the ship stays anchored at the shoreline once they disembark */
     const ax = SHORE_X - 48 - cam;
     if (ax > -46 && ax < VIEW_W)
-      sheet("ship-anchor", Math.floor(t * MANIFEST["ship-anchor.png"].fps),
+      sheet("ship-anchor.png", Math.floor(t * MANIFEST["ship-anchor.png"].fps),
             Math.round(ax), GROUND_Y - 25 + Math.round(Math.sin(t * 2.2) * 1));
     const fighting = eloShown >= 1800 && eloShown < 2400;
     const celebrating = eloShown >= 2400;
     const anim = celebrating ? "pirate-cheer.png" : fighting ? "pirate-fight.png" : "pirate-walk.png";
-    const frame = Math.floor(t * MANIFEST[anim].fps);
-    const baseY = VIEW_H - 12 - 18;                 // feet start 12px from the bottom
-    sheet(anim, frame, Math.round(x - 8 - cam), baseY);
-    sheet(anim, frame + 1, Math.round(x - 22 - cam), baseY);
-    if (!moving) sheet(anim, frame + 2, Math.round(x + 6 - cam), baseY);
+    const fps = MANIFEST[anim].fps;
+    const frame = Math.floor(t * fps);
+    /* three pirates at all times; walk/fight/cheer only while moving,
+       a gentle idle bob when standing */
+    const baseX = [x - 8, x - 22, x + 6];
+    const poses = moving ? [frame, frame + 1, frame + 2] : [0, 0, 0];
+    const bobs = moving ? [0, 0, 0]
+                        : [Math.round(Math.sin(t * 2) * 1),
+                           Math.round(Math.sin(t * 2 + 2.1) * 1),
+                           Math.round(Math.sin(t * 2 + 4.2) * 1)];
+    for (let i = 0; i < 3; i++) {
+      const sx = clamp(Math.round(baseX[i] - cam), 2, VIEW_W - 18);
+      sheet(anim, poses[i], sx, baseY + bobs[i]);
+    }
     if (fighting) {                                  // the castle guard
       sheet("knight-fight", Math.floor(t * 10), 900 - cam, baseY);
       sheet("knight-fight", Math.floor(t * 10) + 1, 1000 - cam, baseY);
@@ -117,8 +152,64 @@
 
   /* ---------------- loop ---------------- */
 
+  let skyFix = null;
+  function smoothSky() {
+    /* the baked sky has hard band edges in the ocean phases; sample it,
+       blur along x, and repaint rows 0..30 — but ONLY west of the beach:
+       from the shoreline eastward the baked daylight sky stays untouched,
+       with a 24px blend so the seam is invisible */
+    const src = bgFrames[0];
+    if (!src.complete) return;
+    skyFix = document.createElement("canvas");
+    skyFix.width = WORLD_W; skyFix.height = 30;
+    const fc = skyFix.getContext("2d");
+    const tmp = document.createElement("canvas");
+    tmp.width = WORLD_W; tmp.height = 30;
+    const tc = tmp.getContext("2d");
+    tc.drawImage(src, 0, 0);
+    const data = tc.getImageData(0, 0, WORLD_W, 30).data;
+    const at = (x, y) => {
+      const i = (y * WORLD_W + x) * 4;
+      return [data[i], data[i + 1], data[i + 2]];
+    };
+    const blurRow = (y) => {
+      const out = new Array(WORLD_W);
+      for (let x = 0; x < WORLD_W; x++) {
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let k = -12; k <= 12; k++) {
+          const cc = at(clamp(x + k, 0, WORLD_W - 1), y);
+          r += cc[0]; g += cc[1]; b += cc[2]; n++;
+        }
+        out[x] = [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+      }
+      return out;
+    };
+    const topRaw = blurRow(2), botRaw = blurRow(28);
+    const topBaked = [], botBaked = [];
+    for (let x = 0; x < SHORE_X; x++) {
+      topBaked.push(at(x, 2)); botBaked.push(at(x, 28));
+    }
+    for (let x = 0; x < SHORE_X; x++) {
+      /* blend the smoothing out over the last 24px before the beach */
+      const k = smooth((x - (SHORE_X - 24)) / 24);
+      const top = k > 0 ? mix(topRaw[x], topBaked[x], k) : topRaw[x];
+      const bot = k > 0 ? mix(botRaw[x], botBaked[x], k) : botRaw[x];
+      const g = fc.createLinearGradient(0, 0, 0, 30);
+      g.addColorStop(0, `rgb(${top[0]},${top[1]},${top[2]})`);
+      g.addColorStop(1, `rgb(${bot[0]},${bot[1]},${bot[2]})`);
+      fc.fillStyle = g;
+      fc.fillRect(x, 0, 1, 30);
+    }
+  }
+
   function render(cam, t, moving) {
     blitBackground(cam, t);
+    if (skyFix) {
+      const w = clamp(SHORE_X - cam, 0, VIEW_W);      // smoothing ends at the beach
+      if (w > 0) ctx.drawImage(skyFix, cam, 0, Math.round(w), 30,
+                               Math.round(cam), 0, Math.round(w), 30);
+    }
+    drawProps(cam);
     drawCrew(cam, t, moving);
   }
 
@@ -144,7 +235,7 @@
     init() {
       eloShown = eloTarget = elo = 800;
       loadAll();
-      onReady = () => requestAnimationFrame(frame);
+      onReady = () => { smoothSky(); requestAnimationFrame(frame); };
     },
     /* tween the crew to the new general Elo; forward on correct answers,
        backward on wrong ones */
