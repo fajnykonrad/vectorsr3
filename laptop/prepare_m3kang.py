@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import io
 import json
+import multiprocessing
 import os
 import re
 import sys
@@ -46,6 +47,8 @@ def parse_args():
     p.add_argument("--no-ocr", action="store_true", help="skip OCR; options will be empty")
     p.add_argument("--save-images", action="store_true", help="also save problem images as PNG")
     p.add_argument("--limit", type=int, default=0, help="only process the first N rows (for testing)")
+    p.add_argument("--workers", type=int, default=1,
+                   help="parallel OCR worker processes; 1 keeps the original sequential path")
     return p.parse_args()
 
 
@@ -134,6 +137,27 @@ def parse_options(boxes):
     return {}
 
 
+# --- Parallel OCR --------------------------------------------------------------
+#
+# RapidOCR stops scaling after about two threads per image, so one process with
+# every core is slow. Several workers, each with a thread cap, use the cores
+# properly. The cache file is only written by the main process.
+
+_OCR = None
+
+
+def ocr_init(threads):
+    global _OCR
+    from rapidocr_onnxruntime import RapidOCR
+    _OCR = RapidOCR(intra_op_num_threads=max(1, threads))
+
+
+def ocr_one(item):
+    key, image = item
+    boxes, _ = _OCR(image)
+    return {"key": key, "options": parse_options(boxes or [])}
+
+
 def main():
     args = parse_args()
     import pyarrow.parquet as pq
@@ -145,9 +169,16 @@ def main():
         os.makedirs(os.path.join(args.out, "images"), exist_ok=True)
 
     ocr = None
+    pool = None
     if not args.no_ocr:
-        from rapidocr_onnxruntime import RapidOCR
-        ocr = RapidOCR()
+        if args.workers > 1:
+            threads = max(1, (os.cpu_count() or args.workers) // args.workers)
+            ctx = multiprocessing.get_context("fork")
+            pool = ctx.Pool(args.workers, initializer=ocr_init, initargs=(threads,))
+            print(f"OCR: {args.workers} workers x {threads} threads each", flush=True)
+        else:
+            from rapidocr_onnxruntime import RapidOCR
+            ocr = RapidOCR()
 
     cache_path = os.path.join(args.out, ".ocr_cache.jsonl")
     cache = {}
@@ -160,18 +191,14 @@ def main():
 
     rows = []
     t0 = time.time()
-    for path in shard_paths(args):
-        table = pq.read_table(path, columns=["language"])
-        wanted = [i for i, lang in enumerate(table.column(0).to_pylist()) if lang in languages]
-        if not wanted:
-            continue
-        full = pq.read_table(path).take(wanted)
-        for i in range(full.num_rows):
-            if args.limit and len(rows) >= args.limit:
-                break
-            r = {c: full.column(c)[i].as_py() for c in ("id", "language", "level", "text_only", "label", "text")}
-            key = f"{r['id']}|{r['language']}"
-            image = full.column("image")[i].as_py()["bytes"]
+
+    def flush(block):
+        if pool is not None:
+            todo = [(key, image) for _r, key, image in block if key not in cache]
+            for res in pool.imap(ocr_one, todo):
+                cache[res["key"]] = res["options"]
+                cache_file.write(json.dumps(res, ensure_ascii=False) + "\n")
+        for r, key, image in block:
             if args.save_images:
                 with open(os.path.join(args.out, "images", key.replace("|", "_") + ".png"), "wb") as f:
                     f.write(image)
@@ -198,6 +225,27 @@ def main():
             if len(rows) % 100 == 0:
                 rate = len(rows) / (time.time() - t0)
                 print(f"  {len(rows)} rows, {rate:.1f} rows/s", flush=True)
+
+    block = []
+    for path in shard_paths(args):
+        table = pq.read_table(path, columns=["language"])
+        wanted = [i for i, lang in enumerate(table.column(0).to_pylist()) if lang in languages]
+        if not wanted:
+            continue
+        full = pq.read_table(path).take(wanted)
+        for i in range(full.num_rows):
+            if args.limit and len(rows) + len(block) >= args.limit:
+                break
+            r = {c: full.column(c)[i].as_py() for c in ("id", "language", "level", "text_only", "label", "text")}
+            key = f"{r['id']}|{r['language']}"
+            image = full.column("image")[i].as_py()["bytes"]
+            block.append((r, key, image))
+            if len(block) >= 64:
+                flush(block)
+                block = []
+        if block:
+            flush(block)
+            block = []
     cache_file.close()
 
     for split in ("train", "val"):

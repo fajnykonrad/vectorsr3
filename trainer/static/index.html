@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kangaroo Trainer</title>
+<style>
+:root { --bg:#0f1420; --card:#1a2232; --line:#2a3550; --text:#e8ecf4; --dim:#8b96ad;
+        --good:#3fb26f; --bad:#e05555; --accent:#5b8def; --warn:#e0a33f; }
+* { box-sizing:border-box; margin:0; }
+body { background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
+.wrap { max-width:880px; margin:0 auto; padding:16px; }
+header { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+h1 { font-size:19px; margin-right:auto; }
+input, button { font:inherit; border-radius:8px; border:1px solid var(--line);
+                background:var(--card); color:var(--text); padding:7px 12px; }
+button { cursor:pointer; } button:hover { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+input[name=user] { width:140px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:12px;
+        padding:16px; margin-bottom:12px; }
+.chip { display:inline-block; background:#243048; border-radius:999px; padding:2px 10px;
+        font-size:12px; color:var(--dim); margin-right:6px; }
+.muted { color:var(--dim); font-size:13px; }
+img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10px;
+              display:block; background:#fff; }
+.opts { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.opts button { min-width:64px; }
+.opts button.sel { border-color:var(--accent); background:#25406e; }
+.sliders { display:flex; gap:6px; margin-top:12px; align-items:center; flex-wrap:wrap; }
+.sliders button { min-width:38px; padding:7px 0; font-weight:600; }
+.sliders button.sel { border-color:var(--accent); background:#25406e; }
+.timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
+.row { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center; }
+.hint { border-left:3px solid var(--warn); padding:6px 10px; margin-top:10px;
+        background:#2a2620; border-radius:0 8px 8px 0; }
+.hint .src { color:var(--dim); font-size:12px; }
+.verdict { font-size:17px; font-weight:700; margin-bottom:6px; }
+.verdict.good { color:var(--good); } .verdict.bad { color:var(--bad); }
+.bars .bar { display:flex; align-items:center; gap:8px; margin:5px 0; }
+.bars .name { width:110px; font-size:13px; color:var(--dim); }
+.bars .track { flex:1; height:12px; background:#0c111c; border-radius:6px; overflow:hidden; }
+.bars .fill { height:100%; background:var(--accent); border-radius:6px; }
+.bars .val { width:110px; font-size:12px; color:var(--dim); text-align:right; }
+table.hist { width:100%; border-collapse:collapse; font-size:13px; }
+table.hist td, table.hist th { padding:4px 6px; border-bottom:1px solid var(--line); text-align:left; }
+.good-text { color:var(--good); } .bad-text { color:var(--bad); }
+#status { color:var(--dim); font-size:13px; min-height:18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>🦘 Kangaroo Trainer</h1>
+  <input name="user" placeholder="your name" value="guest">
+  <button id="btn-stats">My progress</button>
+  <span class="timer" id="timer"></span>
+</header>
+<div id="status">Loading…</div>
+
+<div class="card" id="problem-card" style="display:none">
+  <div><span class="chip" id="p-topic"></span><span class="chip" id="p-level"></span>
+       <span class="chip" id="p-id"></span></div>
+  <div id="p-text" style="margin-top:10px; white-space:pre-wrap"></div>
+  <img class="problem" id="p-img" style="display:none">
+  <div class="opts" id="p-opts"></div>
+  <div class="sliders" id="certainty">
+    <span class="muted">How sure?</span>
+  </div>
+  <div class="row">
+    <button id="btn-answer" disabled>Answer</button>
+    <button id="btn-hint">Get a hint</button>
+    <button id="btn-reveal" style="display:none">Reveal the answer</button>
+    <button id="btn-skip">Skip</button>
+  </div>
+  <div id="hint-box"></div>
+</div>
+
+<div class="card" id="result-card" style="display:none">
+  <div class="verdict" id="v-verdict"></div>
+  <div id="v-detail"></div>
+  <div class="row"><button id="btn-next">Next problem →</button></div>
+</div>
+
+<div class="card" id="stats-card" style="display:none">
+  <h2 style="font-size:16px; margin-bottom:8px">Your ratings per topic</h2>
+  <div class="bars" id="bars"></div>
+  <h2 style="font-size:16px; margin:14px 0 8px">Recent attempts</h2>
+  <table class="hist" id="hist"></table>
+  <div class="row"><button id="btn-back">← Back to practicing</button></div>
+</div>
+</div>
+
+<script>
+"use strict";
+const LETTERS = ["A","B","C","D","E"];
+const SURE = ["a guess","not sure","thinking","quite sure","totally sure"];
+const user = () => document.querySelector("input[name=user]").value.trim() || "guest";
+let problem = null, certainty = 3, choice = null, startTs = 0, hintRung = 0, timerId = null;
+const $ = id => document.getElementById(id);
+const show = (el, on) => el.style.display = on ? "" : "none";
+
+function setStatus(t){ $("status").textContent = t; }
+
+function buildSliders(){
+  const box = $("certainty");
+  for (let i = 1; i <= 5; i++){
+    const b = document.createElement("button");
+    b.textContent = i; b.title = SURE[i-1];
+    b.onclick = () => { certainty = i;
+      [...box.querySelectorAll("button")].forEach((x,j) =>
+        x.classList.toggle("sel", j === i-1)); };
+    box.appendChild(b);
+  }
+  [...box.querySelectorAll("button")][2].classList.add("sel");
+}
+
+async function api(url, opts){
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error((await r.json()).error || r.status);
+  return r.json();
+}
+
+function startTimer(){
+  startTs = Date.now();
+  clearInterval(timerId);
+  timerId = setInterval(() => {
+    $("timer").textContent = ((Date.now() - startTs)/1000).toFixed(0) + " s";
+  }, 250);
+}
+
+async function next(){
+  show($("result-card"), false); show($("stats-card"), false); show($("problem-card"), false);
+  setStatus("Choosing a problem…");
+  try {
+    const data = await api(`/api/next?user=${encodeURIComponent(user())}`);
+    problem = data.problem;
+    hintRung = 0; choice = null; certainty = 3;
+    $("p-topic").textContent = data.topic;
+    $("p-level").textContent = "level " + (problem.level ?? "?");
+    $("p-id").textContent = problem.id;
+    $("p-text").textContent = problem.text;
+    const img = $("p-img");
+    if (problem.text_only){ show(img, false); }
+    else { img.src = `/image/${problem.id}_${problem.language}.png`; show(img, true); }
+    const opts = $("p-opts"); opts.innerHTML = "";
+    const keys = Object.keys(problem.options || {});
+    if (keys.length){
+      LETTERS.forEach(l => {
+        if (!(l in problem.options)) return;
+        const b = document.createElement("button");
+        b.textContent = `${l}) ${problem.options[l]}`;
+        b.onclick = () => { choice = l;
+          [...opts.children].forEach(x => x.classList.toggle("sel", x === b));
+          $("btn-answer").disabled = false; };
+        opts.appendChild(b);
+      });
+    } else {
+      const note = document.createElement("span");
+      note.className = "muted";
+      note.textContent = "(The options are in the picture.)";
+      opts.appendChild(note);
+    }
+    $("hint-box").innerHTML = "";
+    show($("btn-reveal"), false);
+    $("btn-hint").disabled = false;
+    $("btn-answer").disabled = true;
+    $("timer").textContent = "";
+    show($("problem-card"), true);
+    setStatus("");
+    startTimer();
+  } catch (e){ setStatus("Error: " + e.message); }
+}
+
+async function answer(){
+  if (!choice || !problem) return;
+  const seconds = (Date.now() - startTs)/1000;
+  $("btn-answer").disabled = true;
+  try {
+    const r = await api("/api/answer", { method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ user:user(), problem:problem.id, answer:choice,
+                             certainty, seconds, hint_rung:hintRung })});
+    clearInterval(timerId);
+    const v = $("v-verdict");
+    v.textContent = r.correct ? "✔ Correct!" : "✘ Not quite";
+    v.className = "verdict " + (r.correct ? "good" : "bad");
+    const delta = Math.round(r.elo_after - r.elo_before);
+    $("v-detail").innerHTML =
+      `Correct answer: <b>${r.label}</b>${r.options[r.label] ? " (" + r.options[r.label] + ")" : ""} · ` +
+      `topic <b>${r.topic}</b> · rating ${Math.round(r.elo_before)} → <b>${Math.round(r.elo_after)}</b> ` +
+      `<span class="${delta >= 0 ? "good-text" : "bad-text"}">(${delta >= 0 ? "+" : ""}${delta})</span>` +
+      (hintRung ? ` · with ${hintRung} hint${hintRung > 1 ? "s" : ""}` : "");
+    show($("problem-card"), false); show($("result-card"), true);
+    setStatus("");
+  } catch (e){ setStatus("Error: " + e.message); $("btn-answer").disabled = false; }
+}
+
+async function hint(){
+  if (!problem) return;
+  $("btn-hint").disabled = true;
+  hintRung += 1;
+  setStatus("Getting hint " + hintRung + "…");
+  try {
+    const r = await api(`/api/hint?user=${encodeURIComponent(user())}` +
+                        `&problem=${problem.id}&rung=${hintRung}`);
+    const box = $("hint-box");
+    if (r.rung === 1 && r.neighbour){
+      const n = r.neighbour;
+      box.insertAdjacentHTML("beforeend",
+        `<div class="hint"><span class="src">Rung 1 · a similar solved problem (${r.source}):</span><br>` +
+        `${n.text}<br><details><summary>Show its answer</summary> ` +
+        `<b>${n.label}</b>${n.options && n.options[n.label] ? " (" + n.options[n.label] + ")" : ""}</details></div>`);
+    } else if (r.rung === 2){
+      box.insertAdjacentHTML("beforeend",
+        `<div class="hint"><span class="src">Rung 2 · the method:</span><br>${r.text}</div>`);
+    } else if (r.rung === 3){
+      box.insertAdjacentHTML("beforeend",
+        `<div class="hint"><span class="src">Rung 3 · from the model:</span><br>${r.text}</div>`);
+    } else if (r.rung === 4){
+      box.insertAdjacentHTML("beforeend",
+        `<div class="hint"><span class="src">Rung 4 · revealed:</span> the answer is ` +
+        `<b>${r.label}</b></div>`);
+    }
+    if (hintRung < 4) $("btn-hint").disabled = false;
+    if (hintRung >= 3) show($("btn-reveal"), true);
+    setStatus("");
+  } catch (e){ setStatus("Error: " + e.message); hintRung -= 1; $("btn-hint").disabled = false; }
+}
+
+async function stats(){
+  show($("problem-card"), false); show($("result-card"), false);
+  try {
+    const s = await api(`/api/stats?user=${encodeURIComponent(user())}`);
+    const bars = $("bars"); bars.innerHTML = "";
+    const entries = Object.entries(s.ratings).sort((a,b) => a[0].localeCompare(b[0]));
+    const lo = 600, hi = 1100;
+    entries.forEach(([t, v]) => {
+      const pct = Math.max(2, Math.min(100, (v.rating - lo)/(hi - lo)*100));
+      bars.insertAdjacentHTML("beforeend",
+        `<div class="bar"><span class="name">${t}</span>` +
+        `<div class="track"><div class="fill" style="width:${pct}%"></div></div>` +
+        `<span class="val">${v.rating} · ${v.n} tried</span></div>`);
+    });
+    const h = $("hist");
+    h.innerHTML = "<tr><th>problem</th><th>topic</th><th>result</th><th>sure</th><th>time</th><th>hints</th></tr>" +
+      s.attempts.map(a =>
+        `<tr><td>${a.problem}</td><td>${a.topic}</td>` +
+        `<td class="${a.correct ? "good-text" : "bad-text"}">${a.correct ? "✔" : "✘"}</td>` +
+        `<td>${a.certainty}/5</td><td>${a.seconds}s</td><td>${a.hint_rung || ""}</td></tr>`).join("");
+    show($("stats-card"), true);
+    setStatus("");
+  } catch (e){ setStatus("Error: " + e.message); }
+}
+
+buildSliders();
+$("btn-answer").onclick = answer;
+$("btn-hint").onclick = hint;
+$("btn-reveal").onclick = () => { hintRung = 4; hint(); show($("btn-reveal"), false); };
+$("btn-skip").onclick = next;
+$("btn-next").onclick = next;
+$("btn-stats").onclick = stats;
+$("btn-back").onclick = next;
+next();
+</script>
+</body>
+</html>
