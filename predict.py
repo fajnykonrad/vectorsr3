@@ -25,10 +25,12 @@ def main():
     p.add_argument("--output", required=True)
     p.add_argument("--rag", type=int, default=0, metavar="K", help="add K similar solved problems")
     p.add_argument("--index", default="data/index.db")
+    p.add_argument("--no-fusion", action="store_true",
+                   help="ignore data/model.json and answer with the raw model")
     args = p.parse_args()
 
     index = None
-    if args.rag:
+    if args.rag or (not args.no_fusion and os.path.exists(args.index)):
         if not os.path.exists(args.index):
             sys.exit(f"{args.index} not found. Build it first: python3 build_index.py")
         from copilot.rag import Index
@@ -41,7 +43,7 @@ def main():
         writer = csv.writer(out)
         writer.writerow(["id", "language", "answer", "seconds", "status"])
         for n, problem in enumerate(problems, 1):
-            result = solve(problem, index=index, k=args.rag)
+            result = solve(problem, index=index, k=args.rag, fusion=not args.no_fusion)
             writer.writerow([problem["id"], problem.get("language", ""), result["answer"],
                              result["seconds"], result["status"]])
             out.flush()

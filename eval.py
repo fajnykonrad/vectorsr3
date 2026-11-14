@@ -18,8 +18,10 @@ import subprocess
 import time
 from collections import Counter, defaultdict
 
+from copilot import model
 from copilot.config import CONFIG
 from copilot.pipeline import TIME_LIMIT, solve
+from copilot.topics import topic_of
 
 
 def git_commit():
@@ -45,6 +47,8 @@ def main():
     p.add_argument("--rag", type=int, default=0, metavar="K")
     p.add_argument("--index", default="data/index.db")
     p.add_argument("--name", default="", help="a label for this experiment in ablations.csv")
+    p.add_argument("--no-fusion", action="store_true",
+                   help="ignore data/model.json and answer with the raw model")
     args = p.parse_args()
 
     with open(args.input) as f:
@@ -57,9 +61,17 @@ def main():
         problems = problems[:args.limit]
 
     index = None
-    if args.rag:
+    if args.rag or (not args.no_fusion and os.path.exists(args.index)):
         from copilot.rag import Index
         index = Index(args.index)
+    if args.no_fusion:
+        print("Fusion: off (--no-fusion), answering with the raw model")
+    elif model.active():
+        metrics = model.load().get("metrics", {})
+        print(f"Fusion: data/model.json on (at fit time, held out "
+              f"{metrics.get('holdout_raw', '?')}% raw -> {metrics.get('holdout_fused', '?')}% fused)")
+    else:
+        print("Fusion: no data/model.json, answering with the raw model")
 
     os.makedirs("results", exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -69,16 +81,19 @@ def main():
     rows = []
     with open(detail_path, "w", newline="") as out:
         writer = csv.writer(out)
-        writer.writerow(["id", "language", "level", "has_options", "label", "answer",
+        writer.writerow(["id", "language", "level", "topic", "has_options", "label", "answer",
                          "correct", "seconds", "status", "prompt_tokens", "retrieved"])
         for n, problem in enumerate(problems, 1):
-            result = solve(problem, index=index, k=args.rag, exclude_id=problem["id"])
+            result = solve(problem, index=index, k=args.rag, exclude_id=problem["id"],
+                           fusion=not args.no_fusion)
             correct = result["answer"] == problem["label"]
-            row = {**problem, **result, "correct": correct, "has_options": bool(problem.get("options"))}
+            row = {**problem, **result, "correct": correct, "has_options": bool(problem.get("options")),
+                   "topic": topic_of(problem)}
             rows.append(row)
-            writer.writerow([problem["id"], problem["language"], problem["level"], row["has_options"],
-                             problem["label"], result["answer"], int(correct), result["seconds"],
-                             result["status"], result["prompt_tokens"], result["retrieved"]])
+            writer.writerow([problem["id"], problem["language"], problem["level"], row["topic"],
+                             row["has_options"], problem["label"], result["answer"], int(correct),
+                             result["seconds"], result["status"], result["prompt_tokens"],
+                             result["retrieved"]])
             out.flush()
             running = 100 * sum(r["correct"] for r in rows) / len(rows)
             print(f"[{n}/{len(problems)}] {problem['id']} {problem['language']}: "
@@ -98,7 +113,7 @@ def main():
           f"worst {max(seconds):.1f} s, over {TIME_LIMIT:.0f} s: {over}")
     print(f"Status: {dict(Counter(r['status'] for r in rows))}")
 
-    for field, title in (("language", "By language"), ("level", "By level"),
+    for field, title in (("language", "By language"), ("level", "By level"), ("topic", "By topic"),
                          ("has_options", "By whether OCR found the options")):
         groups = defaultdict(list)
         for r in rows:
