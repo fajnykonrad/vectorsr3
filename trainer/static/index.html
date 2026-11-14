@@ -30,10 +30,8 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 .opts button.sel { border-color:var(--accent); background:#25406e; }
 .sliders { display:flex; gap:10px; margin-top:12px; align-items:center; }
 .sliders input[type=range] { flex:0 0 180px; accent-color:var(--accent); }
-.optbtn { display:flex; flex-direction:column; align-items:center; justify-content:center;
-          gap:4px; padding:8px 4px; min-width:0; }
-.optbtn img { width:100%; height:84px; object-fit:contain; background:#fff;
-              border-radius:6px; display:block; }
+.optbtn { display:flex; align-items:center; justify-content:center;
+          min-width:70px; padding:8px 14px; font-weight:600; }
 .timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
 .row { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center; }
 .hint { border-left:3px solid var(--warn); padding:6px 10px; margin-top:10px;
@@ -145,38 +143,17 @@ async function next(){
     if (problem.text_only){ show(img, false); }
     else { img.src = `/image/${problem.id}_${problem.language}.png`; show(img, true); }
     const opts = $("p-opts"); opts.innerHTML = "";
-    const keys = Object.keys(problem.options || {});
-    const images = problem.option_images || {};
-    const anyImages = LETTERS.some(l => images[l]);
-    if (keys.length || anyImages){
-      LETTERS.forEach(l => {
-        if (!(l in problem.options) && !images[l]) return;
-        const b = document.createElement("button");
-        b.className = "optbtn";
-        const hasImage = images[l];
-        if (hasImage){
-          const img = document.createElement("img");
-          img.src = `/image/${images[l]}`;
-          img.alt = `option ${l}`;
-          b.appendChild(img);
-          b.title = `option ${l}`;
-        }
-        if (l in problem.options){
-          const label = document.createElement("span");
-          label.textContent = `${l}) ${problem.options[l]}`;
-          b.appendChild(label);
-        }
-        b.onclick = () => { choice = l;
-          [...opts.children].forEach(x => x.classList.toggle("sel", x === b));
-          $("btn-answer").disabled = false; };
-        opts.appendChild(b);
-      });
-    } else {
-      const note = document.createElement("span");
-      note.className = "muted";
-      note.textContent = "(The options are in the picture.)";
-      opts.appendChild(note);
-    }
+    // Letters only, never the values: the figures and numbers live in the
+    // problem image above.
+    LETTERS.forEach(l => {
+      const b = document.createElement("button");
+      b.className = "optbtn";
+      b.textContent = `${l})`;
+      b.onclick = () => { choice = l;
+        [...opts.children].forEach(x => x.classList.toggle("sel", x === b));
+        $("btn-answer").disabled = false; };
+      opts.appendChild(b);
+    });
     $("hint-box").innerHTML = "";
     show($("btn-reveal"), false);
     $("btn-hint").disabled = false;
