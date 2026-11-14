@@ -24,9 +24,9 @@ def format_problem(problem, sees_image=False):
     return "\n".join(lines)
 
 
-def build_messages(problem, examples=(), image_b64=None):
+def build_messages(problem, examples=(), image_b64=None, system=SYSTEM):
     """image_b64 is a PNG as base64 text. Only a server started with --mmproj can see it."""
-    messages = [{"role": "system", "content": SYSTEM}]
+    messages = [{"role": "system", "content": system}]
     for ex in examples:  # solved problems retrieved with RAG, if any
         messages.append({"role": "user", "content": format_problem(ex) + "\nAnswer:"})
         messages.append({"role": "assistant", "content": ex["label"]})
@@ -40,7 +40,7 @@ def build_messages(problem, examples=(), image_b64=None):
     return messages
 
 
-def answer_distribution(problem, examples=(), timeout=60, image_b64=None, url=URL):
+def answer_distribution(problem, examples=(), timeout=60, image_b64=None, url=URL, system=SYSTEM):
     """Return (letter, probs, timings).
 
     The grammar forces the first token to be one letter, so the whole answer
@@ -50,7 +50,7 @@ def answer_distribution(problem, examples=(), timeout=60, image_b64=None, url=UR
     there. Without log-probabilities, probs is one-hot on the chosen letter.
     """
     response = post(url, {
-        "messages": build_messages(problem, examples, image_b64),
+        "messages": build_messages(problem, examples, image_b64, system),
         "grammar": "root ::= [A-E]",
         "max_tokens": 1,
         "temperature": 0,

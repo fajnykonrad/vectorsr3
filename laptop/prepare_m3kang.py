@@ -193,11 +193,14 @@ def main():
     cache_path = os.path.join(args.out, ".ocr_cache.jsonl")
     cache = {}
     if os.path.exists(cache_path):
-        with open(cache_path) as f:
+        with open(cache_path, encoding="utf-8", errors="ignore") as f:
             for line in f:
-                row = json.loads(line)
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue  # a line a crashed run left half-written
                 cache[row["key"]] = row["options"]
-    cache_file = open(cache_path, "a")
+    cache_file = open(cache_path, "a", encoding="utf-8")
 
     rows = []
     t0 = time.time()
@@ -261,7 +264,7 @@ def main():
 
     for split in ("train", "val"):
         out = os.path.join(args.out, f"{split}.jsonl")
-        with open(out, "w") as f:
+        with open(out, "w", encoding="utf-8") as f:
             for r in rows:
                 if r["split"] == split:
                     f.write(json.dumps({k: v for k, v in r.items() if k != "split"}, ensure_ascii=False) + "\n")

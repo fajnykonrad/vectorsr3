@@ -42,6 +42,8 @@ def parse_args():
     p.add_argument("--languages", default="", help="e.g. eng (default: every language in the file)")
     p.add_argument("--limit", type=int, default=0, help="stop after N new rows (0 means all)")
     p.add_argument("--neighbours", type=int, default=8)
+    p.add_argument("--examples", type=int, default=0, metavar="K",
+                   help="put K retrieved solved problems in the prompt (RAG), like predict.py --rag K")
     return p.parse_args()
 
 
@@ -84,11 +86,15 @@ def main():
             key = f"{problem['id']}|{problem['language']}"
             try:
                 votes = {}
+                examples = []
                 if index is not None:
                     neighbours = index.search(problem, k=args.neighbours, exclude_id=problem["id"])
                     votes = label_votes(neighbours)
+                    if args.examples:
+                        with_options = [p for _score, p in neighbours if p.get("options")]
+                        examples = (with_options or [p for _score, p in neighbours])[:args.examples]
                 remaining = TIME_LIMIT - (time.perf_counter() - start) - MARGIN
-                letter, probs, timings = answer_distribution(problem, (),
+                letter, probs, timings = answer_distribution(problem, examples,
                                                              timeout=max(remaining, 1.0))
             except (socket.timeout, TimeoutError, urllib.error.URLError, OSError) as error:
                 print(f"[{n}/{len(todo)}] {key} failed: {error}", file=sys.stderr)
