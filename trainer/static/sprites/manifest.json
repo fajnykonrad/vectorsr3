@@ -17,6 +17,12 @@
     "frameH": 18,
     "fps": 6
   },
+  "pirate-idle.png": {
+    "frames": 3,
+    "frameW": 16,
+    "frameH": 18,
+    "fps": 4
+  },
   "knight-fight.png": {
     "frames": 3,
     "frameW": 16,

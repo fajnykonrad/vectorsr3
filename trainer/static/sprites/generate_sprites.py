@@ -152,11 +152,13 @@ CX = 7
 
 def draw_pirate(img, pose):
     bob = pose.get("bob", 0)
+    dip = pose.get("dip", 0)          # idle: chest sinks 1px, head stays
+    hdy = pose.get("head_dy", 0)      # idle: head-only vertical (nod/tilt)
     cx = CX + pose.get("lean", 0)
 
     # far arm (behind torso)
     ax, ay = pose["arm_far"]
-    sx, sy = cx - 3, 8 + bob
+    sx, sy = cx - 3, 8 + bob + dip
     line2(img, sx, sy, sx + ax, sy + ay, "shirt")
     rect(img, sx + ax, sy + ay, sx + ax + 1, sy + ay + 1, "skin")
 
@@ -164,27 +166,37 @@ def draw_pirate(img, pose):
     for which in ("far", "near"):
         hip_dx, foot_dx, toe = pose["legs"][which]
         ax0 = cx + foot_dx
-        line2(img, cx + hip_dx, 12 + bob, ax0, 16 if toe else 15, "trousers")
+        line2(img, cx + hip_dx, 12 + bob + dip, ax0, 16 if toe else 15,
+              "trousers")
         boot(img, ax0, 16, 1, toe)
 
     # torso + 1px shoulder highlight + belt (same belt in every frame)
-    rect(img, cx - 3, 7 + bob, cx + 2, 11 + bob, "shirt")
-    rect(img, cx - 3, 7 + bob, cx + 2, 7 + bob, "shirt_light")
-    rect(img, cx - 3, 11 + bob, cx + 2, 11 + bob, "hilt")
-    px(img, cx + 2, 11 + bob, "shirt_white")  # buckle
+    rect(img, cx - 3, 7 + bob + dip, cx + 2, 11 + bob + dip, "shirt")
+    rect(img, cx - 3, 7 + bob + dip, cx + 2, 7 + bob + dip, "shirt_light")
+    rect(img, cx - 3, 11 + bob + dip, cx + 2, 11 + bob + dip, "hilt")
+    px(img, cx + 2, 11 + bob + dip, "shirt_white")  # buckle
+    if dip > hdy:  # neck bridge so the head stays attached when it rides up
+        px(img, cx, 6 + bob + hdy + 1, "skin")
+
+    # sheathed cutlass resting at the belt (idle).  Two draw orders:
+    # normally the sheath is drawn here (behind the near arm); with
+    # "sheath_over" it is drawn after the arm so the pommel shows in
+    # front of the relaxed hand.
+    if pose.get("sheath") and not pose.get("sheath_over"):
+        _sheath(img, cx, bob, dip)
 
     # head: skin disc, bandana band, knot tail on the LEFT, fixed eye
-    disc5(img, cx, 4 + bob, "skin")
-    rect(img, cx - 1, 2 + bob, cx + 1, 2 + bob, "bandana_dk")
-    rect(img, cx - 2, 3 + bob, cx + 2, 3 + bob, "bandana")
-    px(img, cx - 3, 3 + bob, "bandana")       # knot
-    px(img, cx - 4, 4 + bob, "bandana_dk")    # tail tip
-    px(img, cx + 1, 4 + bob, "outline")       # eye
-    rect(img, cx - 1, 6 + bob, cx + 1, 6 + bob, "skin_shade")
+    disc5(img, cx, 4 + bob + hdy, "skin")
+    rect(img, cx - 1, 2 + bob + hdy, cx + 1, 2 + bob + hdy, "bandana_dk")
+    rect(img, cx - 2, 3 + bob + hdy, cx + 2, 3 + bob + hdy, "bandana")
+    px(img, cx - 3, 3 + bob + hdy, "bandana")       # knot
+    px(img, cx - 4, 4 + bob + hdy, "bandana_dk")    # tail tip
+    px(img, cx + 1, 4 + bob + hdy, "outline")       # eye
+    rect(img, cx - 1, 6 + bob + hdy, cx + 1, 6 + bob + hdy, "skin_shade")
 
     # near arm + cutlass (blade rides the hand, always a up-forward guard)
     ax, ay = pose["arm_near"]
-    sx, sy = cx + 2, 8 + bob
+    sx, sy = cx + 2, 8 + bob + dip
     hx, hy = sx + ax, sy + ay
     elbow = pose.get("elbow_near")
     if elbow:  # two-segment arm (route around the head, e.g. wind-up)
@@ -195,9 +207,21 @@ def draw_pirate(img, pose):
     else:
         line2(img, sx, sy, hx, hy, "shirt")
     rect(img, hx, hy, hx + 1, hy + 1, "skin")
+    if pose.get("sheath_over"):
+        _sheath(img, cx, bob, dip)
     if "blade" in pose:
         dx, dy, ln, edge = pose["blade"]
         cutlass(img, hx, hy, dx, dy, ln, edge)
+
+
+def _sheath(img, cx, bob, dip):
+    """Sheathed cutlass hanging at the right hip, pommel above the belt."""
+    b0 = 11 + bob + dip
+    px(img, cx + 3, b0 - 1, "hilt")      # pommel
+    px(img, cx + 3, b0, "hilt")          # grip on the belt row
+    px(img, cx + 3, b0 + 1, "blade_dk")  # scabbard
+    px(img, cx + 3, b0 + 2, "blade_dk")
+    px(img, cx + 4, b0 + 3, "blade_dk")
 
 
 # 6-frame walk: contact right, recoil, passing, high point, contact left,
@@ -403,10 +427,24 @@ ANCHOR_FRAMES = [dict(pennant=(5, 2), anchor=True),
 
 # ------------------------------------------------------------ sheet writing
 
+# 3-frame idle/breathing: feet planted in the same spot (no stepping),
+# chest sinks 1px under the level head, the bandana tail flutters 1px on
+# the nod, and the cutlass rests sheathed at the belt throughout.
+IDLE = [
+    dict(legs={"near": (1, 1, False), "far": (-2, -1, False)},
+         arm_near=(-1, 4), arm_far=(-1, 4), sheath=True, sheath_over=True),
+    dict(dip=1, legs={"near": (1, 1, False), "far": (-2, -1, False)},
+         arm_near=(1, 2), arm_far=(-1, 4), sheath=True),             # chest down, hand on hilt
+    dict(dip=1, head_dy=1,
+         legs={"near": (1, 1, False), "far": (-2, -1, False)},
+         arm_near=(1, 2), arm_far=(-1, 4), sheath=True),             # nod + tail flutter
+]
+
 SHEETS = [
     ("pirate-walk", 16, 18, 10, [lambda im, p=p: draw_pirate(im, p) for p in WALK]),
     ("pirate-fight", 16, 18, 10, [lambda im, p=p: draw_pirate(im, p) for p in FIGHT]),
     ("pirate-cheer", 16, 18, 6, [lambda im, p=p: draw_pirate(im, p) for p in CHEER]),
+    ("pirate-idle", 16, 18, 4, [lambda im, p=p: draw_pirate(im, p) for p in IDLE]),
     ("knight-fight", 16, 18, 10, [lambda im, p=p: draw_knight(im, p) for p in KNIGHT]),
     ("ship-sail", 44, 26, 8, [lambda im, p=p: draw_ship(im, **p) for p in SAIL_FRAMES]),
     ("ship-anchor", 44, 26, 4, [lambda im, p=p: draw_ship(im, **p) for p in ANCHOR_FRAMES]),

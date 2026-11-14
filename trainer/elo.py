@@ -7,7 +7,7 @@ toward what happened. Problems start at 800 + 150 per level, users at 800.
 """
 import math
 
-const USER_SEED = 800.0
+USER_SEED = 800.0
 K_USER_NEW = 56.0    # first attempts in a topic: learn fast
 K_USER = 40.0
 K_PROBLEM = 8.0      # problems move less: their difficulty is mostly the level
@@ -44,7 +44,7 @@ def difficulty_probabilities(rating):
     Around the seed (800) problems stay easy; at ~1160 they are hard, with
     a smooth spread in between and a little variety either side.
     """
-    target = max(0.0, min(2.0, (rating - USER_SEED) / 180.0))
+    target = max(0.0, min(2.0, (rating - USER_SEED) / 150.0))
     spread = 0.6
     weights = [math.exp(-0.5 * ((d - target) / spread) ** 2) for d in (0, 1, 2)]
     total = sum(weights)

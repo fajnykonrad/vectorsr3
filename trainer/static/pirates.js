@@ -18,7 +18,7 @@
   const WORLD_W = 1280;
   const ELO_BASE = 300, ELO_PER_ZONE = 300, ZONES = 8;
   const PX_PER_ELO = WORLD_W / (ELO_PER_ZONE * ZONES);   // 0.533 px per point
-  const SHORE_X = 310;                                   // where dry sand starts
+  const SHORE_X = 280;                                   // dry sand: crew lands at ~825 Elo
   const GROUND_Y = 33;                                   // surface line
   const BG_FRAMES = 5, BG_FPS = 5;
 
@@ -44,6 +44,7 @@
 
   const MANIFEST = {
     "pirate-walk.png":  { frames: 6, frameW: 16, frameH: 18, fps: 10 },
+    "pirate-idle.png":  { frames: 3, frameW: 16, frameH: 18, fps: 4 },
     "pirate-fight.png": { frames: 4, frameW: 16, frameH: 18, fps: 10 },
     "pirate-cheer.png": { frames: 3, frameW: 16, frameH: 18, fps: 6 },
     "knight-fight.png": { frames: 3, frameW: 16, frameH: 18, fps: 10 },
@@ -58,17 +59,18 @@
   let loadedCount = 0, onReady = null;
 
   function loadAll() {
-    const done = () => { if (++loadedCount >= expected() && onReady) { const f = onReady; onReady = null; f(); } };
     const expected = () => BG_FRAMES + Object.keys(MANIFEST).length;
+    const done = () => { if (++loadedCount >= expected() && onReady) { const f = onReady; onReady = null; f(); } };
+    /* onerror also counts: a missing sprite must never block the loop */
     for (let i = 1; i <= BG_FRAMES; i++) {
       const img = new Image();
-      img.onload = done;
+      img.onload = done; img.onerror = done;
       img.src = `/static/sprites/background-${i}.png`;
       bgFrames.push(img);
     }
     for (const name of Object.keys(MANIFEST)) {
       const img = new Image();
-      img.onload = done;
+      img.onload = done; img.onerror = done;
       img.src = `/static/sprites/${name}`;
       sheets[name] = { img, ...MANIFEST[name] };
     }
@@ -145,20 +147,22 @@
             Math.round(ax), GROUND_Y - 25 + Math.round(Math.sin(t * 2.2) * 1));
     const fighting = eloShown >= 1860 && eloShown < 2400;   // the castle region
     const celebrating = eloShown >= 2400;
-    const anim = celebrating ? "pirate-cheer.png" : fighting ? "pirate-fight.png" : "pirate-walk.png";
-    const fps = MANIFEST[anim].fps;
-    const frame = Math.floor(t * fps);
-    /* three pirates at all times; walk/fight/cheer only while moving,
-       a gentle idle bob when standing */
+    const idleSheet = sheets["pirate-idle.png"] && sheets["pirate-idle.png"].img.complete;
+    let anim, frame;
+    if (celebrating) { anim = "pirate-cheer.png"; frame = Math.floor(t * MANIFEST[anim].fps); }
+    else if (fighting) { anim = "pirate-fight.png"; frame = Math.floor(t * MANIFEST[anim].fps); }
+    else if (moving) { anim = "pirate-walk.png"; frame = Math.floor(t * MANIFEST[anim].fps); }
+    else if (idleSheet) { anim = "pirate-idle.png"; frame = Math.floor(t * MANIFEST[anim].fps); }
+    else { anim = "pirate-walk.png"; frame = 0; }
+    const bobs = (moving || celebrating || fighting || idleSheet)
+      ? [0, 0, 0]
+      : [Math.round(Math.sin(t * 2) * 1),
+         Math.round(Math.sin(t * 2 + 2.1) * 1),
+         Math.round(Math.sin(t * 2 + 4.2) * 1)];
     const baseX = [x - 8, x - 22, x + 6];
-    const poses = moving ? [frame, frame + 1, frame + 2] : [0, 0, 0];
-    const bobs = moving ? [0, 0, 0]
-                        : [Math.round(Math.sin(t * 2) * 1),
-                           Math.round(Math.sin(t * 2 + 2.1) * 1),
-                           Math.round(Math.sin(t * 2 + 4.2) * 1)];
     for (let i = 0; i < 3; i++) {
       const sx = clamp(Math.round(baseX[i] - cam), 2, VIEW_W - 18);
-      sheet(anim, poses[i], sx, baseY + bobs[i]);
+      sheet(anim, frame + i, sx, baseY + bobs[i]);
     }
     if (fighting) {                                  // the castle guard
       sheet("knight-fight", Math.floor(t * 10), 900 - cam, baseY);
