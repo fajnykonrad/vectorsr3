@@ -175,7 +175,7 @@ function setOverall(from, to){
 function confetti(){
   const c = $("confetti"), ctx = c.getContext("2d");
   c.width = innerWidth; c.height = innerHeight;
-  show(c, true);
+  c.style.display = "block";  // the stylesheet hides it; "" would keep it hidden
   const colors = ["#f2c14e","#3fb26f","#5b8def","#e05555","#e8ecf4"];
   const parts = Array.from({length: 140}, () => ({
     x: Math.random() * c.width,
@@ -200,7 +200,7 @@ function confetti(){
       ctx.restore();
     }
     if (age < 2400) confetti._raf = requestAnimationFrame(frame);
-    else show(c, false);
+    else c.style.display = "none";
   })(t0);
 }
 
