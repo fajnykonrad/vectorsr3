@@ -210,6 +210,13 @@ class Handler(BaseHTTPRequestHandler):
                                    llm=llm_call if rung == 3 else None)
                 result.setdefault("rung", rung)
                 self._json(200, result)
+            elif path == "/api/explain":
+                user_id = self._user(params)
+                problem = trainer.by_id.get(params.get("problem"))
+                if problem is None:
+                    return self._json(404, {"error": "unknown problem"})
+                # the prefetch cache (or an on-demand generation) answers
+                self._json(200, trainer.take_explanation(problem))
             elif path == "/api/stats":
                 user_id = self._user(params)
                 self._json(200, trainer.stats(user_id))
@@ -240,8 +247,6 @@ class Handler(BaseHTTPRequestHandler):
             overall_after = overall_rating(trainer.con, user_id)
             result["overall_before"] = round(overall_before)
             result["overall_after"] = round(overall_after)
-            if not correct:
-                result["explanation"] = trainer.take_explanation(problem)
             result["label"] = problem["label"]
             result["options"] = problem.get("options") or {}
             self._json(200, result)

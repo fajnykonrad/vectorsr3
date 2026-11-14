@@ -7,12 +7,12 @@ toward what happened. Problems start at 800 + 150 per level, users at 800.
 """
 import math
 
-USER_SEED = 800.0
+USER_SEED = 700.0    # everyone starts the climb here
 K_USER_NEW = 56.0    # first attempts in a topic: learn fast
 K_USER = 40.0
 K_PROBLEM = 8.0      # problems move less: their difficulty is mostly the level
 NEW_TOPICS = 10      # attempts before a topic counts as known
-ELO_STEP_MAX = 20.0  # a single answer moves the user's rating about +-20
+CORRECT_BOOST = 1.3  # correct answers earn more: the ladder is climbable
 
 # Certainty is the slider, 1 (a guess) to 5 (sure). Correct answers score
 # above 0.5, wrong ones below, and certainty sets how far from the middle:
@@ -44,8 +44,8 @@ def difficulty_probabilities(rating):
     Around the seed (800) problems stay easy; at ~1160 they are hard, with
     a smooth spread in between and a little variety either side.
     """
-    target = max(0.0, min(2.0, (rating - USER_SEED) / 150.0))
-    spread = 0.6
+    target = max(0.0, min(2.0, (rating - USER_SEED) / 250.0))
+    spread = 0.7
     weights = [math.exp(-0.5 * ((d - target) / spread) ** 2) for d in (0, 1, 2)]
     total = sum(weights)
     return [0.95 * w / total + 0.05 / 3 for w in weights]
@@ -73,13 +73,14 @@ def expected(user_rating, problem_rating):
 def update(user_rating, problem_rating, score, attempts_in_topic=NEW_TOPICS):
     """Return the new (user_rating, problem_rating) after one attempt.
 
-    The user's move is capped at about +-20 per answer, so a correct one
-    lifts the rating roughly 20 points and a blunder costs at most that,
-    scaled by certainty through the score.
+    Correct answers earn more (the climb is meant to be rewarding); wrong
+    ones cost, scaled by certainty through the score. No cap: the sea and
+    the castle are far apart for a reason.
     """
     e = expected(user_rating, problem_rating)
     k = K_USER_NEW if attempts_in_topic < NEW_TOPICS else K_USER
     delta = k * (score - e)
-    delta = max(-ELO_STEP_MAX, min(ELO_STEP_MAX, delta))
+    if score > e:
+        delta *= CORRECT_BOOST
     return (user_rating + delta,
             problem_rating + K_PROBLEM * (e - score))

@@ -21,15 +21,19 @@ input[name=user] { width:130px; }
 .hdr-right { display:flex; gap:10px; justify-content:flex-end; align-items:center; }
 .timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
 
-/* the pirate-attack scene, full question-box width under the header */
-#scene-box { position:relative; cursor:pointer; margin-bottom:14px; }
+/* the pirate-attack scene: full-bleed across the window, with the Elo
+   rectangle riding above it */
+#scene-box { position:relative; cursor:pointer; margin-bottom:14px;
+             width:100vw; margin-left:calc(50% - 50vw); }
 #pirate-scene { width:100%; height:auto; image-rendering:pixelated;
-                display:block; border-radius:10px; border:1px solid var(--line); }
-#elo-value { position:absolute; top:5px; right:7px; font-size:16px; font-weight:700;
-             font-variant-numeric:tabular-nums; color:#e8ecf4;
-             text-shadow:1px 1px 0 #000; transition:color .25s; }
-#elo-delta { position:absolute; top:26px; right:7px; font-size:12px; font-weight:700;
-             opacity:0; transition:opacity .3s; text-shadow:1px 1px 0 #000; }
+                display:block; }
+#elo-box { margin:0 auto 8px; width:fit-content; display:flex; gap:10px;
+           align-items:baseline; background:var(--card); border:1px solid var(--line);
+           border-radius:10px; padding:5px 20px; }
+#elo-label { font-size:11px; color:var(--dim); letter-spacing:.06em; }
+#elo-value { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums;
+             transition:color .25s; }
+#elo-delta { font-size:13px; font-weight:700; opacity:0; transition:opacity .3s; }
 #elo-delta.up { color:var(--good); opacity:1; }
 #elo-delta.down { color:var(--bad); opacity:1; }
 #elo-value.up { color:var(--good); } #elo-value.down { color:var(--bad); }
@@ -92,12 +96,10 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 #verdict { margin-top:14px; }
 .verdict-line { font-size:16px; font-weight:700; }
 .verdict-line.good { color:var(--good); } .verdict-line.bad { color:var(--bad); }
-#confetti { position:fixed; inset:0; pointer-events:none; z-index:50; display:none; }
 #status { color:var(--dim); font-size:13px; min-height:18px; margin-top:6px; }
 </style>
 </head>
 <body>
-<canvas id="confetti"></canvas>
 <div class="wrap">
 <header>
   <h1>🦘 Kangaroo Trainer</h1>
@@ -107,8 +109,11 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
   </div>
 </header>
 <div id="scene-box" title="Your general Elo, as a pirate attack — click for the per-topic ratings">
+  <div id="elo-box">
+    <span id="elo-label">GENERAL ELO</span>
+    <span id="elo-value">700</span><span id="elo-delta"></span>
+  </div>
   <canvas id="pirate-scene" width="200" height="60"></canvas>
-  <span id="elo-value">800</span><span id="elo-delta"></span>
   <div id="elo-pop">
     <h3>Your ratings per topic</h3>
     <div class="bars" id="bars"></div>
@@ -129,9 +134,9 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
     <span class="muted">How sure?</span>
     <div class="range-wrap">
       <div class="range-track"><div class="range-fill" id="certainty-fill"></div></div>
-      <input type="range" id="certainty" min="1" max="5" step="1" value="3">
+      <input type="range" id="certainty" min="1" max="5" step="1" value="5">
     </div>
-    <span class="chip" id="certainty-label">thinking</span>
+    <span class="chip" id="certainty-label">totally sure</span>
   </div>
   <div class="row">
     <button id="btn-answer" disabled>Answer</button>
@@ -167,7 +172,7 @@ function setCertainty(v){
   $("certainty-fill").style.width = pct + "%";
 }
 
-/* ---- the general Elo: tween the number, drive the pirates, confetti ---- */
+/* ---- the general Elo: tween the number, drive the pirates ---- */
 function setOverall(from, to){
   const el = $("elo-value"), delta = $("elo-delta");
   const wentUp = to > from, wentDown = to < from;
@@ -188,40 +193,6 @@ function setOverall(from, to){
     delta.classList.add(wentUp ? "up" : "down");
     setTimeout(() => delta.classList.remove("up","down"), 2600);
   }
-  if (Math.floor(to / 100) > Math.floor(from / 100)) confetti();  // milestone
-}
-
-/* ---- confetti, no dependencies ---- */
-function confetti(){
-  const c = $("confetti"), ctx = c.getContext("2d");
-  c.width = innerWidth; c.height = innerHeight;
-  c.style.display = "block";  // the stylesheet hides it; "" would keep it hidden
-  const colors = ["#f2c14e","#3fb26f","#5b8def","#e05555","#e8ecf4"];
-  const parts = Array.from({length: 140}, () => ({
-    x: Math.random() * c.width,
-    y: -20 - Math.random() * c.height * 0.3,
-    w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
-    vy: 2.2 + Math.random() * 2.6, vx: -1.6 + Math.random() * 3.2,
-    rot: Math.random() * Math.PI, vr: -0.12 + Math.random() * 0.24,
-    color: colors[(Math.random() * colors.length) | 0],
-  }));
-  const t0 = performance.now();
-  cancelAnimationFrame(confetti._raf);
-  (function frame(now){
-    ctx.clearRect(0, 0, c.width, c.height);
-    const age = now - t0;
-    for (const p of parts){
-      p.x += p.vx; p.y += p.vy; p.vy += 0.03; p.rot += p.vr;
-      ctx.save();
-      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-      ctx.globalAlpha = Math.max(0, 1 - age / 2200);
-      ctx.fillStyle = p.color;
-      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
-      ctx.restore();
-    }
-    if (age < 2400) confetti._raf = requestAnimationFrame(frame);
-    else c.style.display = "none";
-  })(t0);
 }
 
 async function api(url, opts){
@@ -246,7 +217,7 @@ async function next(){
                            (forced ? `&problem=${forced}` : ""));
     problem = data.problem;
     answered = false; hintRung = 0; choice = null;
-    $("certainty").value = 3; setCertainty(3);
+    $("certainty").value = 5; setCertainty(5);
     const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
     const diffNames = ["Easy", "Medium", "Hard"];
     $("p-topic").textContent = cap(data.topic);
@@ -400,7 +371,7 @@ document.addEventListener("click", e => {
   if (!$("scene-box").contains(e.target)) $("elo-pop").classList.remove("open");
 });
 
-setCertainty(3);
+setCertainty(5);
 if (window.Pirates) Pirates.init();
 $("certainty").addEventListener("input", e => setCertainty(e.target.value));
 $("btn-answer").onclick = answer;

@@ -141,8 +141,8 @@
       return;
     }
     /* the ship stays beached at the shoreline once they disembark:
-       bottom-left corner at (270, 38), hull resting in the shallows */
-    const ax = 270 - cam;
+       bottom-left corner at (253, 38), hull resting in the shallows */
+    const ax = 253 - cam;
     if (ax > -46 && ax < VIEW_W)
       sheet("ship-anchor.png", Math.floor(t * MANIFEST["ship-anchor.png"].fps),
             Math.round(ax), 38 - 26 + Math.round(Math.sin(t * 2.2) * 1));
