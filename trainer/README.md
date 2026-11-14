@@ -54,16 +54,19 @@ ends rated below the strong one.
 
 ## The rating model, in one paragraph
 
-Problems start at 800 + 150 per level; users start at 800 per topic. An
-attempt becomes a score in [0, 1]: correctness sets the side (right 0.76–1.00,
-wrong 0.24–0.00) and the certainty slider, 1 to 5, sets how far from the
-middle. A fast correct answer gains 0.10, a slow one loses 0.10, and each
-hint rung used scales the score by 0.85. Both sides then follow Elo with
-K = 56 for the user's first 10 attempts in a topic, then 40, and K = 8 for
-the problem, so problem difficulty drifts toward what students make of it.
-The next topic is chosen with probability 75% softmax(gap to the user's
-average rating) + 25% uniform, and the next problem is the one whose rating
-sits nearest to the topic rating + 60, never one of the last 20 seen.
+Problems start at 800 + 100 per level (grade band 0-7) + 120 per difficulty
+(easy / medium / hard, from the exercise number: 1-10, 11-20, 21-30); users
+start at 800 per topic. An attempt becomes a score in [0, 1]: correctness
+sets the side (right 0.76-1.00, wrong 0.24-0.00) and the certainty slider,
+1 to 5, sets how far from the middle. A fast correct answer gains 0.10, a
+slow one loses 0.10, and each hint rung used scales the score by 0.85. Both
+sides then follow Elo with K = 56 for the user's first 10 attempts in a
+topic, then 40, and K = 8 for the problem, so problem difficulty drifts
+toward what students make of it. The next topic is chosen with probability
+75% softmax(gap to the user's average rating) + 25% uniform, the next
+DIFFICULTY follows the topic rating (800 -> easy, ~1160 -> hard, smooth in
+between), and the next problem is the one whose rating sits nearest to the
+topic rating + 60, never one of the last 20 seen.
 
 ## The hint ladder
 

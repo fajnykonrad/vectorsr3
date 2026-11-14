@@ -77,12 +77,13 @@ def user_ratings(con, user_id):
     return {row["topic"]: (row["rating"], row["n"]) for row in rows}
 
 
-def problem_rating(con, problem_id, level):
-    """The stored rating, or the seed from the level when never attempted."""
+def problem_rating(con, problem_id, level, difficulty=0):
+    """The stored rating, or the seed from level and difficulty when never
+    attempted."""
     with LOCK:
         row = con.execute("SELECT rating FROM problems WHERE id = ?",
                           (problem_id,)).fetchone()
-    return row["rating"] if row else problem_seed(level)
+    return row["rating"] if row else problem_seed(level, difficulty)
 
 
 def recent_seen(con, user_id, n=20):
@@ -105,7 +106,8 @@ def record_attempt(con, user_id, problem, answer, correct, certainty,
         row = con.execute("SELECT rating, n FROM ratings WHERE user_id = ? AND topic = ?",
                           (user_id, topic)).fetchone()
         user_rating, n = (row["rating"], row["n"]) if row else (USER_SEED, 0)
-        prob_rating = problem_rating(con, problem["id"], problem.get("level"))
+        prob_rating = problem_rating(con, problem["id"], problem.get("level"),
+                                     problem.get("difficulty"))
 
         score = attempt_score(correct, certainty, seconds, problem.get("level"),
                               hint_rung)

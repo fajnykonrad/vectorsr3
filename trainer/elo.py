@@ -27,12 +27,27 @@ TIME_BONUS = 0.10
 HINT_COST = 0.85     # each hint rung used scales the score down
 
 
-def problem_seed(level):
-    return 800.0 + 150.0 * (level or 0)
+def problem_seed(level, difficulty=0):
+    """A problem's starting rating: the grade band plus the within-band
+    difficulty. Levels 0..7, difficulties 0 easy / 1 medium / 2 hard."""
+    return 800.0 + 100.0 * (level or 0) + 120.0 * (difficulty or 0)
 
 
 def par_seconds(level):
     return 40.0 + 20.0 * (level or 0)
+
+
+def difficulty_probabilities(rating):
+    """Which difficulty to serve, from the user's rating in the topic.
+
+    Around the seed (800) problems stay easy; at ~1160 they are hard, with
+    a smooth spread in between and a little variety either side.
+    """
+    target = max(0.0, min(2.0, (rating - USER_SEED) / 180.0))
+    spread = 0.6
+    weights = [math.exp(-0.5 * ((d - target) / spread) ** 2) for d in (0, 1, 2)]
+    total = sum(weights)
+    return [0.95 * w / total + 0.05 / 3 for w in weights]
 
 
 def attempt_score(correct, certainty, seconds, level, hint_rung=0):

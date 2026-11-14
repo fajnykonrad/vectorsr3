@@ -61,7 +61,8 @@ table.hist td, table.hist th { padding:4px 6px; border-bottom:1px solid var(--li
 <div id="status">Loading…</div>
 
 <div class="card" id="problem-card" style="display:none">
-  <div><span class="chip" id="p-topic"></span><span class="chip" id="p-level"></span>
+  <div><span class="chip" id="p-topic"></span><span class="chip" id="p-diff"></span>
+       <span class="chip" id="p-level"></span>
        <span class="chip" id="p-id"></span></div>
   <div id="p-text" style="margin-top:10px; white-space:pre-wrap"></div>
   <img class="problem" id="p-img" style="display:none">
@@ -136,6 +137,7 @@ async function next(){
     hintRung = 0; choice = null;
     $("certainty").value = 3; setCertainty(3);
     $("p-topic").textContent = data.topic;
+    $("p-diff").textContent = ["easy","medium","hard"][problem.difficulty || 0];
     $("p-level").textContent = "level " + (problem.level ?? "?");
     $("p-id").textContent = problem.id;
     $("p-text").textContent = problem.text;

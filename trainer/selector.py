@@ -8,7 +8,7 @@ a small margin is chosen: a gentle stretch, never far above what they can do.
 import math
 import random
 
-from .elo import USER_SEED, problem_seed
+from .elo import USER_SEED, difficulty_probabilities, problem_seed
 from .topics import TOPIC_IDS
 
 MIX_ADAPTIVE = 0.75   # the rest is uniform over topics, so practice varies
@@ -17,6 +17,12 @@ GAP_MIN, GAP_MAX = -200.0, 400.0
 TARGET_MARGIN = 60.0  # aim a bit above the user's rating
 RECENT = 20           # never repeat the last N problems shown
 RANDOMNESS = 3        # pick among the 3 nearest problems, for variety
+
+
+def pick_difficulty(rating, rng=random):
+    """0, 1 or 2, drawn from the probabilities the rating implies."""
+    probabilities = difficulty_probabilities(rating)
+    return rng.choices((0, 1, 2), weights=probabilities)[0]
 
 
 def topic_probabilities(ratings):
@@ -41,9 +47,14 @@ def pick_topic(ratings, rng=random):
 
 
 def pick_problem(problems, topic, ratings, problem_ratings, recent, rng=random):
-    """One problem from `topic`: nearest rating to the target, with options,
-    not seen recently. Falls back progressively so it always returns one."""
-    target = ratings.get(topic, USER_SEED) + TARGET_MARGIN
+    """One problem from `topic`: the user's rating decides the difficulty,
+    then the nearest rating to the target, with options, not seen recently.
+    Falls back progressively so it always returns one."""
+    user_rating = ratings.get(topic, USER_SEED)
+    target = user_rating + TARGET_MARGIN
+    wanted = pick_difficulty(user_rating, rng)
+    rating_of = lambda p: problem_ratings.get(
+        p["id"], problem_seed(p.get("level"), p.get("difficulty")))
     pool = [p for p in problems if p["topic"] == topic and p["id"] not in recent]
     if not pool:
         pool = [p for p in problems if p["id"] not in recent]
@@ -51,8 +62,8 @@ def pick_problem(problems, topic, ratings, problem_ratings, recent, rng=random):
         pool = list(problems)
     if not pool:
         return None
-    rating_of = lambda p: problem_ratings.get(p["id"], problem_seed(p.get("level")))
-    ranked = sorted(pool, key=lambda p: (0 if p.get("options") else 1,
-                                         abs(rating_of(p) - target)))
+    ranked = sorted(pool, key=lambda p: (p.get("difficulty", 0) != wanted,
+                                         abs(rating_of(p) - target),
+                                         0 if p.get("options") else 1))
     top = ranked[:RANDOMNESS]
     return rng.choice(top)
