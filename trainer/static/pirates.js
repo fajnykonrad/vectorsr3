@@ -98,17 +98,21 @@
   /* ---------------- scenery and the crew ---------------- */
 
   function drawProps(cam) {
-    /* user-made scenery at native size, feet on the ground line */
-    const put = (name, wx) => {
+    /* user-made scenery: palms on the sand, bushes on the grass, barrels
+       in town — bottomY is where each prop's base sits (larger = closer) */
+    const props = [
+      ["palm.png", 300, 36], ["palm.png", 332, 36], ["palm.png", 362, 36],
+      ["bush.png", 400, 35], ["bush.png", 448, 38], ["bush.png", 496, 36],
+      ["bush.png", 544, 39], ["bush.png", 592, 37], ["bush.png", 640, 35],
+      ["barrel.png", 782, 36], ["barrel.png", 818, 37],
+    ];
+    for (const [name, wx, bottomY] of props) {
       const s = sheets[name];
-      if (!s || !s.img.complete) return;
+      if (!s || !s.img.complete) continue;
       const sx = Math.round(wx - cam);
-      if (sx < -34 || sx > VIEW_W) return;
-      ctx.drawImage(s.img, 0, 0, s.frameW, s.frameH, sx, GROUND_Y - 32, s.frameW, s.frameH);
-    };
-    put("palm.png", 350);     // the beach
-    put("bush.png", 500);     // the grass boundary
-    put("barrel.png", 730);   // the town pavement
+      if (sx < -34 || sx > VIEW_W) continue;
+      ctx.drawImage(s.img, 0, 0, s.frameW, s.frameH, sx, bottomY - 32, s.frameW, s.frameH);
+    }
   }
 
   function drawCrew(cam, t, moving) {
@@ -127,7 +131,7 @@
     if (ax > -46 && ax < VIEW_W)
       sheet("ship-anchor.png", Math.floor(t * MANIFEST["ship-anchor.png"].fps),
             Math.round(ax), GROUND_Y - 25 + Math.round(Math.sin(t * 2.2) * 1));
-    const fighting = eloShown >= 1800 && eloShown < 2400;
+    const fighting = eloShown >= 1860 && eloShown < 2400;   // the castle region
     const celebrating = eloShown >= 2400;
     const anim = celebrating ? "pirate-cheer.png" : fighting ? "pirate-fight.png" : "pirate-walk.png";
     const fps = MANIFEST[anim].fps;
