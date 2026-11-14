@@ -37,6 +37,9 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=300, help="gradient steps for the fit")
     p.add_argument("--learning-rate", type=float, default=0.5)
     p.add_argument("--l2", type=float, default=0.01, help="L2 penalty on offsets and weight")
+    p.add_argument("--folds", type=int, default=5, help="cross-validation folds for the policy")
+    p.add_argument("--margin", type=float, default=0.5,
+                   help="CV gain in points above which a group ships the fusion")
     p.add_argument("--min-group", type=int, default=60,
                    help="fit a group separately only from this many fit problems")
     return p.parse_args()
@@ -69,8 +72,14 @@ def group_of(row):
 
 
 def score(row, params, group="global"):
-    """Letter -> fused score for one row: log p + offset + weight * vote."""
-    offsets = params["offsets"].get(group) or params["offsets"]["global"]
+    """Letter -> fused score for one row: log p + offset + weight * vote.
+
+    Strict group policy, as copilot.model.pick: a group without its own
+    entry answers raw — no offsets, no votes.
+    """
+    offsets = params["offsets"].get(group)
+    if offsets is None:
+        return dict(row["probs"])
     weight = params["knn_weight"] if votes_present(row) else 0.0
     votes = row.get("votes") or {}
     return {letter: row["probs"].get(letter, FLOOR) + offsets.get(letter, 0.0)
@@ -145,6 +154,32 @@ def fit(rows, epochs=300, learning_rate=0.5, l2=0.01):
     return params, accuracy(rows, params)
 
 
+def cross_validated(rows, group, folds=5, epochs=150, learning_rate=0.5, l2=0.01):
+    """Does the fitted fusion generalize within this group of rows?
+
+    K-fold cross-validation by problem id: fit on K-1 folds, measure raw and
+    fused accuracy on the fold left out. Returns (raw, fused) mean accuracies.
+    The fitted params are rewrapped under this group's key, exactly as
+    data/model.json ships them, so the evaluation matches the policy.
+    """
+    ids = sorted({row["id"] for row in rows})
+    buckets = {pid: index % folds for index, pid in enumerate(ids)}
+    raw_scores, fused_scores = [], []
+    for fold in range(folds):
+        inner = [r for r in rows if buckets[r["id"]] != fold]
+        outer = [r for r in rows if buckets[r["id"]] == fold]
+        if not outer or len(inner) < 20:
+            continue
+        plain, _acc = fit(inner, epochs, learning_rate, l2)
+        fitted = {"offsets": {group: plain["offsets"]["global"]},
+                  "knn_weight": plain["knn_weight"]}
+        raw_scores.append(accuracy(outer))
+        fused_scores.append(accuracy(outer, fitted, group))
+    if not raw_scores:
+        return 0.0, 0.0
+    return sum(raw_scores) / len(raw_scores), sum(fused_scores) / len(fused_scores)
+
+
 def main():
     args = parse_args()
     languages = set(filter(None, args.languages.split(",")))
@@ -157,9 +192,22 @@ def main():
     plain, _acc = fit(fit_rows, args.epochs, args.learning_rate, args.l2)
     offsets = {"global": plain["offsets"]["global"]}
     knn = {"global": plain["knn_weight"]}
+
+    # Policy per group: ship the fusion only where cross-validation by id says
+    # it generalizes (measured on the fit rows; the held-out rows stay honest).
+    print(f"\nPolicy by cross-validation ({args.folds} folds by problem id, fit rows only):")
     for name in ("with_options", "without_options"):
         group_rows = [row for row in fit_rows if group_of(row) == name]
-        if len(group_rows) >= args.min_group:
+        if len(group_rows) < args.min_group:
+            print(f"  {name:16} {len(group_rows)} rows < --min-group: fusion stays off")
+            continue
+        cv_raw, cv_fused = cross_validated(group_rows, name, args.folds,
+                                           min(args.epochs, 150), args.learning_rate, args.l2)
+        gain = 100 * (cv_fused - cv_raw)
+        keep = gain > args.margin
+        print(f"  {name:16} raw {100 * cv_raw:5.1f}% -> fused {100 * cv_fused:5.1f}% "
+              f"({gain:+.1f} points) -> {'SHIP fusion' if keep else 'keep raw'}")
+        if keep:
             fitted, _acc = fit(group_rows, args.epochs, args.learning_rate, args.l2)
             offsets[name] = fitted["offsets"]["global"]
             knn[name] = fitted["knn_weight"]
@@ -180,9 +228,12 @@ def main():
         if group_held:
             print(f"  {name:16} held out: raw {100 * accuracy(group_held):5.1f}% -> "
                   f"fused {100 * accuracy(group_held, params):5.1f}% ({len(group_held)} rows)")
-    shown = offsets.get("with_options") or offsets["global"]
-    print("Offsets: " + "  ".join(f"{l} {shown[l]:+.2f}" for l in LETTERS)
-          + f"   kNN weight {knn['global']:.2f}")
+    for name in ("with_options", "without_options"):
+        if name in offsets:
+            print(f"Offsets {name}: " + "  ".join(f"{l} {offsets[name][l]:+.2f}" for l in LETTERS)
+                  + f"   kNN weight {knn[name]:.2f}")
+        else:
+            print(f"Offsets {name}: none (this group answers raw)")
     def letter_counts(answer_of):
         return {letter: sum(answer_of(row) == letter for row in held_rows) for letter in LETTERS}
     fused_counts = letter_counts(lambda row: pick(row, params, group_of(row)))

@@ -51,7 +51,13 @@ def weight_of(params, group):
 
 
 def pick(probs, votes=None, has_options=None):
-    """One letter A..E: argmax of the fused score. Ties keep the earlier letter."""
+    """One letter A..E: argmax of the fused score. Ties keep the earlier letter.
+
+    Strict group policy: the fitted offsets apply only to the group they were
+    shipped for (fit_model.py decides by cross-validation). A group without
+    its own entry answers with the model's raw distribution — no fallback, no
+    votes — so a fit that does not generalize cannot hurt that group.
+    """
     letters = "ABCDE"
     if not any(letter in probs for letter in letters):
         return None
@@ -59,8 +65,9 @@ def pick(probs, votes=None, has_options=None):
     if not params:
         return raw_pick(probs)
     group = "with_options" if has_options else "without_options"
-    offsets = params.get("offsets") or {}
-    chosen_group = offsets.get(group) or offsets.get("global") or {}
+    chosen_group = (params.get("offsets") or {}).get(group)
+    if chosen_group is None:
+        return raw_pick(probs)
     weight = weight_of(params, group) if votes else 0.0
     best, best_score = None, None
     for letter in letters:

@@ -65,9 +65,16 @@ def main():
     fit_rows, held_rows = fit_model.split(rows, 0.2)
 
     params, _fit_acc = fit_model.fit(fit_rows)
+    # fit() returns the fitted values under "global"; the shipped model.json
+    # applies them per group (strict policy), so evaluate the same way
+    params = {"offsets": {"with_options": params["offsets"]["global"],
+                          "without_options": params["offsets"]["global"]},
+              "knn_weight": params["knn_weight"],
+              "knn_weight_with_options": params["knn_weight"],
+              "knn_weight_without_options": params["knn_weight"]}
     raw = 100 * fit_model.accuracy(held_rows)
     fused = 100 * fit_model.accuracy(held_rows, params)
-    offsets = params["offsets"]["global"]
+    offsets = params["offsets"]["with_options"]
     floor_letter, floor_count = max(
         ((letter, sum(row["label"] == letter for row in held_rows)) for letter in "ABCDE"),
         key=lambda pair: pair[1])
@@ -88,8 +95,7 @@ def main():
 
     # copilot.model.pick must agree with the fit's own pick on held-out rows
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-        json.dump({"enabled": True, "offsets": {"global": offsets},
-                   "knn_weight": params["knn_weight"]}, f)
+        json.dump({"enabled": True, **params}, f)
         path = f.name
     model.load(path=path, force=True)
     mismatched = 0

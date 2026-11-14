@@ -14,6 +14,14 @@ around it, and all of it is learned from the M3Kang training problems:
 3. **A kNN weight**: how much the neighbours' answers should count against
    the model's own letter distribution.
 
+The fusion ships per problem group (with / without OCR options) only when
+5-fold cross-validation by problem id says it generalizes beyond a margin
+(--margin, 2.0 points). A group without shipped offsets answers with the
+model's raw distribution, so a fit that overfits one group cannot hurt the
+other. The first version shipped both groups and lost 4.9 held-out points;
+the letter tables (fused C 71 vs truth 39) and the per-group breakdown
+caught it.
+
 At answer time (`copilot/pipeline.py`) every letter A..E gets
 
     score(L) = log p_model(L) + offset_L + knn_weight * vote_L
@@ -69,8 +77,9 @@ report a number, run `--limit 0` on the whole validation set.
 | File | What |
 | --- | --- |
 | `collect.py` | appends the raw model's signals (probs, votes) to `data/signals.jsonl` |
-| `fit_model.py` | fits offsets + kNN weight into `data/model.json`, with held-out metrics |
-| `copilot/model.py` | loads `data/model.json` and picks the fused letter |
+| `fit_model.py` | fits offsets + kNN weight per group (CV-gated), writes `data/model.json` |
+| `diagnose_fusion.py` | per-group accuracy of raw / votes / fused rules on fit and held-out parts |
+| `copilot/model.py` | loads `data/model.json` and picks the fused letter (strict group policy) |
 | `copilot/pipeline.py` | the answer pipeline the official run measures |
 | `copilot/topics.py` | a rule-based topic per problem, for the error analysis |
 | `selftest.py` | checks the whole fit + fusion maths on synthetic signals, no server needed |
