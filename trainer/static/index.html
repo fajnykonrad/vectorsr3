@@ -71,7 +71,19 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 .optbtn:disabled { opacity:1; }
 @keyframes pop { 40% { transform:scale(1.08); } }
 .sliders { display:flex; gap:10px; margin-top:12px; align-items:center; }
-.sliders input[type=range] { flex:0 0 180px; accent-color:var(--accent); }
+.range-wrap { position:relative; flex:0 0 200px; height:20px; }
+.range-track { position:absolute; left:10px; right:10px; top:5px; height:10px;
+               background:#0c111c; border-radius:5px; overflow:hidden; }
+.range-fill { position:absolute; left:0; top:0; height:10px; width:50%;
+              background:var(--accent); border-radius:5px; }
+#certainty { -webkit-appearance:none; appearance:none; position:relative;
+             width:100%; height:20px; margin:0; background:transparent;
+             outline:none; cursor:pointer; }
+#certainty::-webkit-slider-thumb { -webkit-appearance:none; appearance:none;
+             width:20px; height:20px; border-radius:50%; background:var(--accent);
+             border:2px solid #0f1420; box-shadow:0 0 0 1px var(--line); }
+#certainty::-moz-range-thumb { width:20px; height:20px; border-radius:50%;
+             background:var(--accent); border:2px solid #0f1420; }
 .row { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center; }
 .hint { border-left:3px solid var(--warn); padding:6px 10px; margin-top:10px;
         background:#2a2620; border-radius:0 8px 8px 0; }
@@ -117,7 +129,10 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
   <div class="opts" id="p-opts"></div>
   <div class="sliders">
     <span class="muted">How sure?</span>
-    <input type="range" id="certainty" min="1" max="5" step="1" value="3">
+    <div class="range-wrap">
+      <div class="range-track"><div class="range-fill" id="certainty-fill"></div></div>
+      <input type="range" id="certainty" min="1" max="5" step="1" value="3">
+    </div>
     <span class="chip" id="certainty-label">thinking</span>
   </div>
   <div class="row">
@@ -146,6 +161,11 @@ function setStatus(t){ $("status").textContent = t; }
 function setCertainty(v){
   certainty = parseInt(v, 10);
   $("certainty-label").textContent = SURE[certainty - 1];
+  // the visible track is inset by the thumb radius on both sides, so the
+  // thumb's center travels exactly from the track's left end to its right
+  // end; the fill follows, and at 5 the circle sits on the very end
+  const pct = (certainty - 1) / 4 * 100;
+  $("certainty-fill").style.width = pct + "%";
 }
 
 /* ---- the general Elo: tween, flash, milestone confetti ---- */
