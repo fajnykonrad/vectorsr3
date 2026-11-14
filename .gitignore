@@ -2,6 +2,8 @@
 data/*
 !data/sample_problems.jsonl
 !data/README.md
+# The fitted fusion (6 learned numbers + metrics): no M3Kang content, commit it
+!data/model.json
 
 # Results are created on each board
 results/*
