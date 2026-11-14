@@ -21,17 +21,15 @@ input[name=user] { width:130px; }
 .hdr-right { display:flex; gap:10px; justify-content:flex-end; align-items:center; }
 .timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
 
-/* the general Elo, top center */
-#elo-badge { position:relative; cursor:pointer; text-align:center;
-             background:var(--card); border:1px solid var(--line);
-             border-radius:12px; padding:6px 18px; min-width:130px;
-             transition:border-color .3s; }
-#elo-badge:hover { border-color:var(--accent); }
-#elo-label { font-size:11px; color:var(--dim); letter-spacing:.06em; }
-#elo-value { font-size:24px; font-weight:700; font-variant-numeric:tabular-nums;
-             transition:color .25s; }
-#elo-delta { font-size:13px; font-weight:700; margin-left:6px; opacity:0;
-             transition:opacity .3s; }
+/* the pirate-attack scene, top center */
+#scene-box { position:relative; cursor:pointer; }
+#pirate-scene { width:400px; height:120px; image-rendering:pixelated;
+                display:block; border-radius:10px; border:1px solid var(--line); }
+#elo-value { position:absolute; top:5px; right:7px; font-size:16px; font-weight:700;
+             font-variant-numeric:tabular-nums; color:#e8ecf4;
+             text-shadow:1px 1px 0 #000; transition:color .25s; }
+#elo-delta { position:absolute; top:8px; right:44px; font-size:12px; font-weight:700;
+             opacity:0; transition:opacity .3s; text-shadow:1px 1px 0 #000; }
 #elo-delta.up { color:var(--good); opacity:1; }
 #elo-delta.down { color:var(--bad); opacity:1; }
 #elo-value.up { color:var(--good); } #elo-value.down { color:var(--bad); }
@@ -103,8 +101,8 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 <div class="wrap">
 <header>
   <h1>🦘 Kangaroo Trainer</h1>
-  <div id="elo-badge" title="Your general Elo — click for the per-topic ratings">
-    <div id="elo-label">GENERAL ELO</div>
+  <div id="scene-box" title="Your general Elo, as a pirate attack — click for the per-topic ratings">
+    <canvas id="pirate-scene" width="200" height="60"></canvas>
     <span id="elo-value">800</span><span id="elo-delta"></span>
     <div id="elo-pop">
       <h3>Your ratings per topic</h3>
@@ -147,6 +145,7 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
 </div>
 </div>
 
+<script src="/static/pirates.js"></script>
 <script>
 "use strict";
 const LETTERS = ["A","B","C","D","E"];
@@ -168,10 +167,11 @@ function setCertainty(v){
   $("certainty-fill").style.width = pct + "%";
 }
 
-/* ---- the general Elo: tween, flash, milestone confetti ---- */
+/* ---- the general Elo: tween the number, drive the pirates, confetti ---- */
 function setOverall(from, to){
   const el = $("elo-value"), delta = $("elo-delta");
   const wentUp = to > from, wentDown = to < from;
+  if (window.Pirates) Pirates.setTarget(to);
   const t0 = performance.now(), DUR = 900;
   cancelAnimationFrame(setOverall._raf);
   (function step(now){
@@ -369,6 +369,7 @@ async function refreshPopover(){
     const s = await api(`/api/stats?user=${encodeURIComponent(user())}`);
     overall = s.overall;
     $("elo-value").textContent = s.overall;
+    if (window.Pirates) Pirates.setTarget(s.overall);
     const bars = $("bars"); bars.innerHTML = "";
     const entries = Object.entries(s.ratings).sort((a,b) => a[0].localeCompare(b[0]));
     const lo = 600, hi = 1100;
@@ -388,17 +389,18 @@ async function refreshPopover(){
   } catch (e){ /* the popover just stays as it is */ }
 }
 
-$("elo-badge").onclick = async () => {
+$("scene-box").onclick = async () => {
   const pop = $("elo-pop");
   const open = !pop.classList.contains("open");
   pop.classList.toggle("open", open);
   if (open) await refreshPopover();
 };
 document.addEventListener("click", e => {
-  if (!$("elo-badge").contains(e.target)) $("elo-pop").classList.remove("open");
+  if (!$("scene-box").contains(e.target)) $("elo-pop").classList.remove("open");
 });
 
 setCertainty(3);
+if (window.Pirates) Pirates.init();
 $("certainty").addEventListener("input", e => setCertainty(e.target.value));
 $("btn-answer").onclick = answer;
 $("btn-hint").onclick = hint;
