@@ -1,0 +1,38 @@
+{
+  "pirate-walk.png": {
+    "frames": 6,
+    "frameW": 16,
+    "frameH": 18,
+    "fps": 10
+  },
+  "pirate-fight.png": {
+    "frames": 4,
+    "frameW": 16,
+    "frameH": 18,
+    "fps": 10
+  },
+  "pirate-cheer.png": {
+    "frames": 3,
+    "frameW": 16,
+    "frameH": 18,
+    "fps": 6
+  },
+  "knight-fight.png": {
+    "frames": 3,
+    "frameW": 16,
+    "frameH": 18,
+    "fps": 10
+  },
+  "ship-sail.png": {
+    "frames": 4,
+    "frameW": 44,
+    "frameH": 26,
+    "fps": 8
+  },
+  "ship-anchor.png": {
+    "frames": 2,
+    "frameW": 44,
+    "frameH": 26,
+    "fps": 4
+  }
+}

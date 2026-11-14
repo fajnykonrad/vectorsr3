@@ -176,13 +176,15 @@ class Handler(BaseHTTPRequestHandler):
                 with open(os.path.join(STATIC, "index.html"), "rb") as f:
                     self._send(200, f.read(), "text/html; charset=utf-8")
             elif path.startswith("/static/"):
-                name = os.path.basename(path[len("/static/"):])
-                if not name:
+                rel = path[len("/static/"):].split("?")[0]
+                full = os.path.normpath(os.path.join(STATIC, rel))
+                if not full.startswith(os.path.abspath(STATIC) + os.sep) or \
+                        not os.path.isfile(full):
                     return self._json(404, {"error": "not found"})
-                ctype = ("application/javascript" if name.endswith(".js")
-                         else "image/png" if name.endswith(".png")
+                ctype = ("application/javascript" if rel.endswith(".js")
+                         else "image/png" if rel.endswith(".png")
                          else "text/plain")
-                with open(os.path.join(STATIC, name), "rb") as f:
+                with open(full, "rb") as f:
                     self._send(200, f.read(), ctype + "; charset=utf-8"
                                if ctype.startswith("text") else ctype)
             elif path.startswith("/image/"):
