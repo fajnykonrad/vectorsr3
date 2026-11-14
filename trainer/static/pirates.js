@@ -90,7 +90,6 @@
   function drawCrew(cam, t, moving) {
     const x = eloToX(eloShown);
     const onLand = x >= SHORE_X;
-    const baseY = GROUND_Y - 18;                    // 18-tall: feet on y=32
     if (!onLand) {
       const bob = Math.round(Math.sin(t * 2.2) * 1);
       sheet("ship-sail", Math.floor(t * MANIFEST["ship-sail.png"].fps),
@@ -106,6 +105,7 @@
     const celebrating = eloShown >= 2400;
     const anim = celebrating ? "pirate-cheer.png" : fighting ? "pirate-fight.png" : "pirate-walk.png";
     const frame = Math.floor(t * MANIFEST[anim].fps);
+    const baseY = VIEW_H - 12 - 18;                 // feet start 12px from the bottom
     sheet(anim, frame, Math.round(x - 8 - cam), baseY);
     sheet(anim, frame + 1, Math.round(x - 22 - cam), baseY);
     if (!moving) sheet(anim, frame + 2, Math.round(x + 6 - cam), baseY);
