@@ -98,21 +98,33 @@
   /* ---------------- scenery and the crew ---------------- */
 
   function drawProps(cam) {
-    /* user-made scenery: palms on the sand, bushes on the grass, barrels
-       in town — bottomY is where each prop's base sits (larger = closer) */
-    const props = [
-      ["palm.png", 300, 36], ["palm.png", 332, 36], ["palm.png", 362, 36],
-      ["bush.png", 400, 35], ["bush.png", 448, 38], ["bush.png", 496, 36],
-      ["bush.png", 544, 39], ["bush.png", 592, 37], ["bush.png", 640, 35],
-      ["barrel.png", 782, 36], ["barrel.png", 818, 37],
-    ];
-    for (const [name, wx, bottomY] of props) {
+    /* one of each user sprite, sitting ON the surface: the sprite's lowest
+       opaque pixel row is aligned to the ground line, whatever transparent
+       padding its frame carries */
+    const propBottom = {};
+    const put = (name, wx) => {
       const s = sheets[name];
-      if (!s || !s.img.complete) continue;
+      if (!s || !s.img.complete) return;
+      if (propBottom[name] === undefined) {
+        const tmp = document.createElement("canvas");
+        tmp.width = s.frameW; tmp.height = s.frameH;
+        const tc = tmp.getContext("2d");
+        tc.drawImage(s.img, 0, 0);
+        const data = tc.getImageData(0, 0, s.frameW, s.frameH).data;
+        let bottom = 0;
+        for (let y = 0; y < s.frameH; y++)
+          for (let x = 0; x < s.frameW; x++)
+            if (data[(y * s.frameW + x) * 4 + 3] > 0) bottom = y;
+        propBottom[name] = bottom;
+      }
       const sx = Math.round(wx - cam);
-      if (sx < -34 || sx > VIEW_W) continue;
-      ctx.drawImage(s.img, 0, 0, s.frameW, s.frameH, sx, bottomY - 32, s.frameW, s.frameH);
-    }
+      if (sx < -34 || sx > VIEW_W) return;
+      ctx.drawImage(s.img, 0, 0, s.frameW, s.frameH,
+                    sx, GROUND_Y - propBottom[name] - 1, s.frameW, s.frameH);
+    };
+    put("palm.png", 350);     // one on the sand
+    put("bush.png", 500);     // one on the grass
+    put("barrel.png", 730);   // one on the town pavement
   }
 
   function drawCrew(cam, t, moving) {
