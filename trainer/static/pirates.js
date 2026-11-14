@@ -18,7 +18,7 @@
   const WORLD_W = 1280;
   const ELO_BASE = 300, ELO_PER_ZONE = 300, ZONES = 8;
   const PX_PER_ELO = WORLD_W / (ELO_PER_ZONE * ZONES);   // 0.533 px per point
-  const SHORE_X = 269;                                   // first sand column
+  const SHORE_X = 310;                                   // where dry sand starts
   const GROUND_Y = 33;                                   // surface line
   const BG_FRAMES = 5, BG_FPS = 5;
 
@@ -98,13 +98,13 @@
   /* ---------------- scenery and the crew ---------------- */
 
   function drawProps(cam) {
-    /* user-made scenery, half size, feet on the horizon line */
+    /* user-made scenery at native size, feet on the ground line */
     const put = (name, wx) => {
       const s = sheets[name];
       if (!s || !s.img.complete) return;
       const sx = Math.round(wx - cam);
-      if (sx < -18 || sx > VIEW_W) return;
-      ctx.drawImage(s.img, 0, 0, s.frameW, s.frameH, sx, GROUND_Y - 16, 16, 16);
+      if (sx < -34 || sx > VIEW_W) return;
+      ctx.drawImage(s.img, 0, 0, s.frameW, s.frameH, sx, GROUND_Y - 32, s.frameW, s.frameH);
     };
     put("palm.png", 350);     // the beach
     put("bush.png", 500);     // the grass boundary
@@ -152,63 +152,8 @@
 
   /* ---------------- loop ---------------- */
 
-  let skyFix = null;
-  function smoothSky() {
-    /* the baked sky has hard band edges in the ocean phases; sample it,
-       blur along x, and repaint rows 0..30 — but ONLY west of the beach:
-       from the shoreline eastward the baked daylight sky stays untouched,
-       with a 24px blend so the seam is invisible */
-    const src = bgFrames[0];
-    if (!src.complete) return;
-    skyFix = document.createElement("canvas");
-    skyFix.width = WORLD_W; skyFix.height = 30;
-    const fc = skyFix.getContext("2d");
-    const tmp = document.createElement("canvas");
-    tmp.width = WORLD_W; tmp.height = 30;
-    const tc = tmp.getContext("2d");
-    tc.drawImage(src, 0, 0);
-    const data = tc.getImageData(0, 0, WORLD_W, 30).data;
-    const at = (x, y) => {
-      const i = (y * WORLD_W + x) * 4;
-      return [data[i], data[i + 1], data[i + 2]];
-    };
-    const blurRow = (y) => {
-      const out = new Array(WORLD_W);
-      for (let x = 0; x < WORLD_W; x++) {
-        let r = 0, g = 0, b = 0, n = 0;
-        for (let k = -12; k <= 12; k++) {
-          const cc = at(clamp(x + k, 0, WORLD_W - 1), y);
-          r += cc[0]; g += cc[1]; b += cc[2]; n++;
-        }
-        out[x] = [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
-      }
-      return out;
-    };
-    const topRaw = blurRow(2), botRaw = blurRow(28);
-    const topBaked = [], botBaked = [];
-    for (let x = 0; x < SHORE_X; x++) {
-      topBaked.push(at(x, 2)); botBaked.push(at(x, 28));
-    }
-    for (let x = 0; x < SHORE_X; x++) {
-      /* blend the smoothing out over the last 24px before the beach */
-      const k = smooth((x - (SHORE_X - 24)) / 24);
-      const top = k > 0 ? mix(topRaw[x], topBaked[x], k) : topRaw[x];
-      const bot = k > 0 ? mix(botRaw[x], botBaked[x], k) : botRaw[x];
-      const g = fc.createLinearGradient(0, 0, 0, 30);
-      g.addColorStop(0, `rgb(${top[0]},${top[1]},${top[2]})`);
-      g.addColorStop(1, `rgb(${bot[0]},${bot[1]},${bot[2]})`);
-      fc.fillStyle = g;
-      fc.fillRect(x, 0, 1, 30);
-    }
-  }
-
   function render(cam, t, moving) {
     blitBackground(cam, t);
-    if (skyFix) {
-      const w = clamp(SHORE_X - cam, 0, VIEW_W);      // smoothing ends at the beach
-      if (w > 0) ctx.drawImage(skyFix, cam, 0, Math.round(w), 30,
-                               Math.round(cam), 0, Math.round(w), 30);
-    }
     drawProps(cam);
     drawCrew(cam, t, moving);
   }
@@ -235,7 +180,7 @@
     init() {
       eloShown = eloTarget = elo = 800;
       loadAll();
-      onReady = () => { smoothSky(); requestAnimationFrame(frame); };
+      onReady = () => requestAnimationFrame(frame);
     },
     /* tween the crew to the new general Elo; forward on correct answers,
        backward on wrong ones */
