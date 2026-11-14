@@ -124,7 +124,7 @@ img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10
   <div><span class="chip" id="p-topic"></span><span class="chip" id="p-diff"></span>
        <span class="chip" id="p-level"></span>
        <span class="chip" id="p-id"></span></div>
-  <div id="p-text" style="margin-top:10px; white-space:pre-wrap"></div>
+  <div id="p-text" style="display:none"></div>
   <img class="problem" id="p-img" style="display:none">
   <div class="opts" id="p-opts"></div>
   <div class="sliders">
@@ -254,9 +254,10 @@ async function next(){
     $("p-level").textContent = "level " + (problem.level ?? "?");
     $("p-id").textContent = problem.id;
     $("p-text").textContent = problem.text;
+    $("p-text").style.display = "none";   // the image carries the full problem
     const img = $("p-img");
-    if (problem.text_only){ show(img, false); }
-    else { img.src = `/image/${problem.id}_${problem.language}.png`; show(img, true); }
+    img.src = `/image/${problem.id}_${problem.language}.png`;
+    show(img, true);
     const opts = $("p-opts"); opts.innerHTML = "";
     // Letters only, never the values: the figures and numbers live in the
     // problem image above.
