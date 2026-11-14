@@ -46,7 +46,7 @@ def load_signals(path, languages=()):
     rows = []
     if not os.path.exists(path):
         sys.exit(f"{path} not found. Collect signals first: python3 collect.py")
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 row = json.loads(line)

@@ -57,7 +57,7 @@ def answer_distribution(problem, examples=(), timeout=60, image_b64=None, url=UR
         "seed": int(CONFIG["SEED"]),
         "cache_prompt": True,
         "logprobs": True,
-        "top_logprobs": 20,
+        "top_logprobs": 40,  # raw (pre-grammar) logprobs; 40 keeps all five letters inside
     }, timeout=timeout)
     choice = response["choices"][0]
     letter = choice["message"]["content"].strip()

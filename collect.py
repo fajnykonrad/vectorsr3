@@ -48,7 +48,7 @@ def parse_args():
 def existing_keys(path):
     keys = set()
     if os.path.exists(path):
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 if line.strip():
                     keys.add(json.loads(line).get("key"))
@@ -68,7 +68,7 @@ def main():
         index = Index(args.index)
 
     languages = set(filter(None, args.languages.split(",")))
-    with open(args.input) as f:
+    with open(args.input, encoding="utf-8") as f:
         problems = [json.loads(line) for line in f if line.strip()]
     problems = [p for p in problems if not languages or p["language"] in languages]
     done = existing_keys(args.output)
@@ -77,7 +77,7 @@ def main():
         todo = todo[:args.limit]
     print(f"{len(problems)} problems, {len(done)} already collected, {len(todo)} to go")
 
-    correct = misses = 0
+    correct = misses = written = 0
     with open(args.output, "a") as out:
         for n, problem in enumerate(todo, 1):
             start = time.perf_counter()
@@ -101,13 +101,14 @@ def main():
                    "prompt_tokens": timings.get("prompt_n", 0)}
             out.write(json.dumps(row, ensure_ascii=False) + "\n")
             out.flush()
+            written += 1
             correct += row["answer"] == row["label"]
             print(f"[{n}/{len(todo)}] {key} -> {row['answer']} (truth {row['label']}) "
                   f"in {row['seconds']:.1f} s, "
-                  f"raw accuracy so far {100 * correct / max(correct + misses, 1):.1f}%",
+                  f"raw accuracy so far {100 * correct / max(written, 1):.1f}%",
                   flush=True)
-    print(f"\nCollected {correct + misses} new signals ({misses} failed) into {args.output}")
-    print(f"Raw model accuracy on them: {100 * correct / max(correct + misses, 1):.1f}%")
+    print(f"\nCollected {written} new signals ({misses} failed) into {args.output}")
+    print(f"Raw model accuracy on them: {100 * correct / max(written, 1):.1f}%")
     print("Next: python3 fit_model.py")
 
 

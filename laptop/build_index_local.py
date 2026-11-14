@@ -45,7 +45,7 @@ def main():
                  "  .venv\\Scripts\\activate\n  pip install sentence-transformers")
 
     languages = set(filter(None, args.languages.split(",")))
-    with open(args.input) as f:
+    with open(args.input, encoding="utf-8") as f:
         problems = [json.loads(line) for line in f if line.strip()]
     problems = [x for x in problems
                 if (not languages or x["language"] in languages)
