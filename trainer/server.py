@@ -324,6 +324,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(404, {"error": "unknown problem"})
                 # the prefetch cache (or an on-demand generation) answers
                 self._json(200, trainer.take_explanation(problem))
+            elif path == "/api/users":
+                with LOCK:
+                    rows = self.trainer.con.execute(
+                        "SELECT u.name, COUNT(a.id) AS n FROM users u "
+                        "LEFT JOIN attempts a ON a.user_id = u.id "
+                        "GROUP BY u.id ORDER BY n DESC, u.name").fetchall()
+                self._json(200, {"users": [{"name": r["name"], "n": r["n"]}
+                                           for r in rows]})
             elif path == "/api/stats":
                 user_id = self._user(params)
                 self._json(200, trainer.stats(user_id))

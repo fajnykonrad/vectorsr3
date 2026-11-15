@@ -103,6 +103,29 @@ table.hist td, table.hist th { padding:3px 5px;
                                border-bottom:1px solid var(--line); text-align:left; }
 .good-text { color:var(--good); } .bad-text { color:var(--bad); }
 
+/* login gate: every sailor picks (or creates) a name before playing, so
+   one student's progress never bleeds into another's */
+#login { position:fixed; inset:0; background:rgba(4,8,16,.86); z-index:50;
+         display:flex; align-items:center; justify-content:center; }
+.login-card { background:var(--panel); border:1px solid var(--gold-dim);
+              border-radius:16px; padding:26px 30px; width:min(440px, 92vw);
+              box-shadow:0 20px 60px rgba(0,0,0,.6); }
+.login-card h2 { font:700 20px Georgia, serif; color:var(--gold); margin-bottom:2px; }
+.login-card .muted { margin-bottom:12px; }
+#login-users { max-height:180px; overflow:auto; margin-bottom:12px; }
+.user-chip { display:flex; justify-content:space-between; align-items:center;
+             width:100%; margin:5px 0; background:var(--panel-2); }
+.user-chip .muted { font-size:11px; }
+#login .row { display:flex; gap:8px; }
+#login input { flex:1; }
+#login-start { background:linear-gradient(180deg, var(--gold), var(--gold-dim));
+               color:#3a2a08; font-weight:700; border-color:#8a6a20; }
+.user-badge { display:inline-flex; align-items:center; gap:6px;
+              background:var(--panel); border:1px solid var(--gold-dim);
+              border-radius:999px; padding:6px 14px; color:var(--gold);
+              font-weight:600; }
+.user-badge:hover { border-color:var(--gold); }
+
 #status { color:var(--dim); font-size:13px; min-height:18px; margin:6px 0; }
 
 /* the problem: a parchment sheet pinned to the dark board */
@@ -218,6 +241,19 @@ table.full th { color:var(--gold-dim); font-weight:600; font-size:11px;
 </style>
 </head>
 <body>
+<div id="login" style="display:none">
+  <div class="login-card">
+    <h2>⚓ Who sails today?</h2>
+    <div class="muted">Every sailor keeps their own progress. Pick your name
+      or start a new voyage.</div>
+    <div id="login-users"></div>
+    <div class="row">
+      <input id="login-name" maxlength="40" placeholder="new sailor's name">
+      <button id="login-start">Set sail →</button>
+    </div>
+  </div>
+</div>
+
 <div class="chrono" id="chrono" title="Seconds on this problem">
   <svg viewBox="0 0 48 48" width="48" height="48">
     <circle class="chrono-bg" cx="24" cy="24" r="19"/>
@@ -231,7 +267,9 @@ table.full th { color:var(--gold-dim); font-weight:600; font-size:11px;
 <header>
   <h1>☠ Kangaroo Trainer</h1>
   <div class="hdr-right">
-    <input name="user" placeholder="your name" value="guest">
+    <button id="user-badge" class="user-badge" title="Switch sailor">
+      🦜 <span id="user-name">guest</span> ⇄</button>
+    <input type="hidden" name="user" value="guest">
   </div>
 </header>
 
@@ -705,7 +743,42 @@ $("btn-hint").onclick = hint;
 $("btn-reveal").onclick = () => { hintRung = 4; hint(); show($("btn-reveal"), false); };
 $("btn-next").onclick = next;
 $("btn-skip").onclick = next;
-next();
+/* ---- who is sailing: the login gate keeps progress per sailor ---- */
+const STORE_KEY = "trainer_user";
+function setCurrentUser(name){
+  name = (name || "").trim().slice(0, 40);
+  if (!name) return;
+  localStorage.setItem(STORE_KEY, name);
+  document.querySelector("input[name=user]").value = name;
+  $("user-name").textContent = name;
+  lastStats = null;
+  show($("login"), false);
+  refreshPopover();     // the Elo box now shows THIS sailor's number
+  next();               // a fresh problem for this sailor
+}
+async function openLogin(){
+  show($("login"), true);
+  try {
+    const d = await api("/api/users");
+    $("login-users").innerHTML = d.users.map(u =>
+      `<button class="user-chip" data-name="${u.name}"><span>🦜 ${u.name}</span>` +
+      `<span class="muted">${u.n} tried</span></button>`).join("")
+      || `<div class="muted">No sailors yet — be the first.</div>`;
+    [...$("login-users").querySelectorAll(".user-chip")].forEach(b =>
+      b.onclick = () => setCurrentUser(b.dataset.name));
+  } catch (e){ /* the name box still works offline */ }
+}
+$("login-start").onclick = () => setCurrentUser($("login-name").value);
+$("login-name").addEventListener("keydown", e => {
+  if (e.key === "Enter") setCurrentUser($("login-name").value);
+});
+$("user-badge").onclick = openLogin;
+
+if (localStorage.getItem(STORE_KEY)){
+  setCurrentUser(localStorage.getItem(STORE_KEY));
+} else {
+  openLogin();
+}
 </script>
 </body>
 </html>
