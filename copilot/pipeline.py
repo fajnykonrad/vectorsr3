@@ -25,8 +25,13 @@ from .config import CONFIG
 from .llm import URL, answer_distribution
 from .prior import level_prior, median_letter, uniform_pick
 
-UNIFORM = os.environ.get("UNIFORM", "0").lower() not in ("0", "false", "off")
-LAMBDA = float(os.environ.get("UNIFORM_LAMBDA", "0.8"))
+FUSION = os.environ.get("FUSION", "1").lower() not in ("0", "false", "off")
+
+
+def uniform_mode():
+    """Read at call time: predict.py/eval.py set UNIFORM=1 after importing
+    this module, so a module-level constant would miss the flag."""
+    return os.environ.get("UNIFORM", "0").lower() not in ("0", "false", "off")
 
 TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
 FALLBACK = CONFIG["FALLBACK_ANSWER"]
@@ -101,11 +106,12 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
                                                      image_b64=image_b64, url=llm_url)
         result["probs"] = {l: round(v, 4) for l, v in probs.items()}
         result["prompt_tokens"] = timings.get("prompt_n", 0)
-        if UNIFORM:
+        if uniform_mode():
             # the jury's test distribution states uniform true letters; the
             # model's D/A marginal is a measured liability there (calibrate
             # +5 points on their practice set). UNIFORM=1 -> calibrate.
-            chosen = uniform_pick(probs, LAMBDA)
+            lam = float(os.environ.get("UNIFORM_LAMBDA", "0.8"))
+            chosen = uniform_pick(probs, lam)
             result["status"] = "ok-uniform"
         else:
             chosen = model.pick(probs, votes, has_options=bool(problem.get("options"))) \
