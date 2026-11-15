@@ -171,28 +171,86 @@ class Trainer:
         return problem
 
     def stats(self, user_id):
+        """Everything the stats tab and the quick popover need, in one call."""
         with LOCK:
             overall = overall_rating(self.con, user_id)
             ratings = user_ratings(self.con, user_id)
             rows = self.con.execute(
-                "SELECT problem_id, topic, correct, certainty, seconds, hint_rung, "
-                "elo_before, elo_after, ts FROM attempts WHERE user_id = ? "
-                "ORDER BY ts DESC LIMIT 15", (user_id,)).fetchall()
+                "SELECT problem_id, topic, answer, correct, certainty, seconds, "
+                "hint_rung, elo_before, elo_after, ts FROM attempts "
+                "WHERE user_id = ? ORDER BY ts DESC LIMIT 15", (user_id,)).fetchall()
             counts = defaultdict(int)
             for row in self.con.execute(
                     "SELECT topic, COUNT(*) AS n FROM attempts WHERE user_id = ? "
                     "GROUP BY topic", (user_id,)):
                 counts[row["topic"]] = row["n"]
+            all_rows = self.con.execute(
+                "SELECT problem_id, topic, answer, correct, seconds, hint_rung, "
+                "elo_before, elo_after, ts FROM attempts WHERE user_id = ? "
+                "ORDER BY ts ASC", (user_id,)).fetchall()
+
+        n = len(all_rows)
+        n_correct = sum(r["correct"] for r in all_rows)
+        streak = best = 0
+        for r in all_rows:  # oldest to newest: the live streak ends today
+            streak = streak + 1 if r["correct"] else 0
+            best = max(best, streak)
+
+        by_level = defaultdict(lambda: [0, 0])
+        heatmap = defaultdict(dict)
+        per_topic = defaultdict(lambda: [0, 0])
+        for r in all_rows:
+            problem = self.by_id.get(r["problem_id"], {})
+            key = str(problem.get("level")) if problem else "?"
+            by_level[key][1] += 1
+            by_level[key][0] += r["correct"]
+            heatmap[r["topic"]].setdefault(key, [0, 0])
+            heatmap[r["topic"]][key][1] += 1
+            heatmap[r["topic"]][key][0] += r["correct"]
+            per_topic[r["topic"]][1] += 1
+            per_topic[r["topic"]][0] += r["correct"]
+
+        # the general Elo replayed attempt by attempt (same weighted mean the
+        # live computation uses, one point per attempt)
+        seen = {}
+        evolution = []
+        for r in all_rows:
+            rating, cnt = seen.get(r["topic"], (0.0, 0))
+            seen[r["topic"]] = (r["elo_after"], cnt + 1)
+            total = sum(c for _, c in seen.values())
+            evolution.append([round(r["ts"] * 1000),
+                              round(sum(rt * c for rt, c in seen.values()) / total)])
+        evolution = evolution[-200:]
+
+        attempts = []
+        for r in rows:
+            problem = self.by_id.get(r["problem_id"], {})
+            attempts.append({
+                "problem": r["problem_id"], "topic": r["topic"],
+                "level": problem.get("level"), "answer": r["answer"],
+                "label": problem.get("label"), "correct": bool(r["correct"]),
+                "certainty": r["certainty"], "seconds": round(r["seconds"], 1),
+                "hint_rung": r["hint_rung"],
+                "elo_after": round(r["elo_after"]),
+                "delta": round(r["elo_after"] - r["elo_before"]),
+                "ts": round(r["ts"])})
         return {
             "overall": round(overall),
             "ratings": {t: {"rating": round(ratings.get(t, (800.0, 0))[0]),
-                            "n": ratings.get(t, (0, 0))[1]} for t in TOPICS},
-            "attempts": [{"problem": r["problem_id"], "topic": r["topic"],
-                          "correct": bool(r["correct"]), "certainty": r["certainty"],
-                          "seconds": round(r["seconds"], 1),
-                          "hint_rung": r["hint_rung"],
-                          "elo_after": round(r["elo_after"])} for r in rows],
+                            "n": ratings.get(t, (0, 0))[1],
+                            "correct": per_topic.get(t, [0, 0])[0],
+                            "total": per_topic.get(t, [0, 0])[1]} for t in TOPICS},
+            "attempts": attempts,
             "attempt_counts": dict(counts),
+            "totals": {"n": n, "correct": n_correct,
+                       "accuracy": round(100 * n_correct / n, 1) if n else 0.0,
+                       "mean_seconds": round(sum(r["seconds"] for r in all_rows) / n, 1)
+                                       if n else 0.0,
+                       "streak": streak, "best_streak": best,
+                       "hints": sum(r["hint_rung"] for r in all_rows)},
+            "by_level": {k: v for k, v in sorted(by_level.items())},
+            "heatmap": {t: dict(v) for t, v in heatmap.items()},
+            "evolution": evolution,
         }
 
 

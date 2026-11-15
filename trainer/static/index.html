@@ -5,32 +5,53 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kangaroo Trainer</title>
 <style>
-:root { --bg:#0f1420; --card:#1a2232; --line:#2a3550; --text:#e8ecf4; --dim:#8b96ad;
-        --good:#3fb26f; --bad:#e05555; --accent:#5b8def; --warn:#e0a33f; --gold:#f2c14e; }
+:root { --bg:#0b1220; --panel:#131d33; --panel-2:#0e1728; --line:#263450;
+        --text:#e8ecf4; --dim:#8b96ad;
+        --good:#3fb26f; --bad:#e05555; --accent:#5b8def; --warn:#e0a33f;
+        --gold:#f2c14e; --gold-dim:#c69a3a;
+        --wood:#5a3f28; --wood-hi:#7a5735;
+        --paper:#f6ecd2; --paper-2:#efe2c0; --ink:#3b2f1d; --ink-dim:#7a6845;
+        --paper-line:#c9b98f; }
 * { box-sizing:border-box; margin:0; }
-body { background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
-.wrap { max-width:880px; margin:0 auto; padding:14px; }
+body { background:
+        radial-gradient(1200px 500px at 50% -140px, #16233f 0%, transparent 60%),
+        var(--bg);
+       color:var(--text);
+       font:15px/1.5 system-ui, sans-serif; }
+.wrap { max-width:960px; margin:0 auto; padding:14px 16px 40px; }
+
 header { display:flex; justify-content:space-between; align-items:center;
-         gap:10px; margin-bottom:14px; }
-h1 { font-size:19px; }
+         gap:10px; margin-bottom:10px; }
+h1 { font:700 20px Georgia, 'Palatino Linotype', 'Book Antiqua', serif;
+     color:var(--gold); letter-spacing:.02em; text-shadow:0 2px 6px rgba(0,0,0,.5); }
 input, button { font:inherit; border-radius:8px; border:1px solid var(--line);
-                background:var(--card); color:var(--text); padding:7px 12px; }
-button { cursor:pointer; } button:hover { border-color:var(--accent); }
+                background:var(--panel); color:var(--text); padding:7px 12px; }
+button { cursor:pointer; transition:border-color .2s, background .2s, transform .12s; }
+button:hover:not(:disabled) { border-color:var(--gold-dim); }
+button:active:not(:disabled) { transform:scale(.97); }
 button:disabled { opacity:.45; cursor:default; }
 input[name=user] { width:130px; }
 .hdr-right { display:flex; gap:10px; justify-content:flex-end; align-items:center; }
 .timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
 
-/* the pirate-attack scene: full-bleed across the window, with the Elo
-   rectangle riding above it */
+/* tabs: wooden ship planks */
+.tabs { display:flex; gap:6px; margin-bottom:14px; }
+.tab { padding:8px 22px; border-radius:10px 10px 0 0; border:1px solid transparent;
+       border-bottom:none; background:transparent; color:var(--dim);
+       font-weight:600; letter-spacing:.03em; }
+.tab.active { background:linear-gradient(180deg, var(--wood-hi), var(--wood));
+              border-color:#3a2917; color:var(--gold);
+              box-shadow:0 -2px 8px rgba(0,0,0,.35); }
+
+/* the pirate-attack scene: full-bleed across the window */
 #scene-box { position:relative; cursor:pointer; margin-bottom:14px;
              width:100vw; margin-left:calc(50% - 50vw); }
 #pirate-scene { width:100%; height:auto; image-rendering:pixelated;
                 display:block; }
 #elo-box { margin:0 auto 8px; width:fit-content; display:flex; gap:10px;
-           align-items:baseline; background:var(--card); border:1px solid var(--line);
+           align-items:baseline; background:var(--panel); border:1px solid var(--line);
            border-radius:10px; padding:5px 20px; }
-#elo-label { font-size:11px; color:var(--dim); letter-spacing:.06em; }
+#elo-label { font-size:11px; color:var(--dim); letter-spacing:.14em; }
 #elo-value { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums;
              transition:color .25s; }
 #elo-delta { font-size:13px; font-weight:700; opacity:0; transition:opacity .3s; }
@@ -38,116 +59,225 @@ input[name=user] { width:130px; }
 #elo-delta.down { color:var(--bad); opacity:1; }
 #elo-value.up { color:var(--good); } #elo-value.down { color:var(--bad); }
 #elo-pop { display:none; position:absolute; top:calc(100% + 8px); left:50%;
-           transform:translateX(-50%); width:420px; background:var(--card);
-           border:1px solid var(--line); border-radius:12px; padding:14px;
+           transform:translateX(-50%); width:460px; background:var(--panel);
+           border:1px solid var(--gold-dim); border-radius:12px; padding:14px;
            z-index:20; box-shadow:0 8px 30px rgba(0,0,0,.5); text-align:left; }
 #elo-pop.open { display:block; }
-#elo-pop h3 { font-size:13px; color:var(--dim); margin-bottom:8px; font-weight:600; }
+#elo-pop h3 { font:600 13px Georgia, serif; color:var(--gold-dim);
+              margin-bottom:8px; letter-spacing:.05em; }
 .bars .bar { display:flex; align-items:center; gap:8px; margin:4px 0; }
 .bars .name { width:96px; font-size:12px; color:var(--dim); }
-.bars .track { flex:1; height:10px; background:#0c111c; border-radius:5px; overflow:hidden; }
-.bars .fill { height:100%; background:var(--accent); border-radius:5px;
-              transition:width .5s; }
-.bars .val { width:96px; font-size:11px; color:var(--dim); text-align:right; }
+.bars .track { flex:1; height:10px; background:#0c111c; border-radius:5px;
+               overflow:hidden; }
+.bars .fill { height:100%; background:linear-gradient(90deg, var(--accent),
+              #7fa7ff); border-radius:5px; transition:width .5s; }
+.bars .val { width:110px; font-size:11px; color:var(--dim); text-align:right; }
 table.hist { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
-table.hist td, table.hist th { padding:3px 5px; border-bottom:1px solid var(--line); text-align:left; }
+table.hist td, table.hist th { padding:3px 5px;
+                               border-bottom:1px solid var(--line); text-align:left; }
 .good-text { color:var(--good); } .bad-text { color:var(--bad); }
 
-.card { background:var(--card); border:1px solid var(--line); border-radius:12px;
-        padding:16px; }
-.chip { display:inline-block; background:#243048; border-radius:999px; padding:2px 10px;
-        font-size:12px; color:var(--dim); margin-right:6px; }
-.chip.diff-easy { background:#1d3a2a; color:var(--good); }
-.chip.diff-medium { background:#3a331d; color:var(--warn); }
-.chip.diff-hard { background:#3a1d1d; color:var(--bad); }
-.muted { color:var(--dim); font-size:13px; }
+#status { color:var(--dim); font-size:13px; min-height:18px; margin:6px 0; }
+
+/* the problem: a parchment sheet pinned to the dark board */
+#problem-card { background:linear-gradient(175deg, var(--paper), var(--paper-2));
+                color:var(--ink); border:1px solid var(--paper-line);
+                border-radius:14px; padding:18px 20px;
+                box-shadow:0 10px 30px rgba(0,0,0,.45), inset 0 0 60px rgba(160,130,70,.12);
+                position:relative; }
+#problem-card::before { content:""; position:absolute; inset:6px; pointer-events:none;
+                        border:1px dashed rgba(120,100,60,.25); border-radius:10px; }
+.chip { display:inline-block; background:rgba(59,47,29,.08); border:1px solid rgba(59,47,29,.25);
+        border-radius:999px; padding:2px 10px; font-size:12px; color:var(--ink-dim);
+        margin-right:6px; }
+.chip.diff-easy { background:#dcead2; color:#2e5220; border-color:#a9c491; }
+.chip.diff-medium { background:#f2e6c8; color:#7a5b16; border-color:#cbb277; }
+.chip.diff-hard { background:#f2d7cf; color:#8a2f1d; border-color:#cf9c8b; }
+#problem-card .muted { color:var(--ink-dim); font-size:13px; }
 img.problem { max-width:100%; max-height:340px; border-radius:8px; margin-top:10px;
-              display:block; background:#fff; }
+              display:block; background:#fff; box-shadow:0 2px 8px rgba(80,60,20,.25); }
 .opts { display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-top:12px; }
 .optbtn { display:flex; align-items:center; justify-content:center;
-          min-width:70px; padding:9px 14px; font-weight:600;
+          min-width:70px; padding:9px 14px; font-weight:700;
+          background:#fff9ec; border:1px solid var(--paper-line); color:var(--ink);
           transition:background .25s, border-color .25s, transform .15s; }
-.optbtn.sel { border-color:var(--accent); background:#25406e; }
-.optbtn.good { border-color:var(--good); background:#1d3a2a; animation:pop .35s; }
-.optbtn.bad { border-color:var(--bad); background:#3a1d1d; animation:pop .35s; }
+.optbtn:hover:not(:disabled) { border-color:#a98f4f; }
+.optbtn.sel { background:#e8d9ae; border-color:#a98f4f; }
+.optbtn.good { background:#d8e8c8; border-color:#5a8f4a; color:#274a1c; animation:pop .35s; }
+.optbtn.bad { background:#f0d3cd; border-color:#b0523f; color:#6e2417; animation:pop .35s; }
 .optbtn:disabled { opacity:1; }
 @keyframes pop { 40% { transform:scale(1.08); } }
 .sliders { display:flex; gap:10px; margin-top:12px; align-items:center; }
 .range-wrap { position:relative; flex:0 0 200px; height:20px; }
 .range-track { position:absolute; left:10px; right:10px; top:5px; height:10px;
-               background:#0c111c; border-radius:5px; overflow:hidden; }
+               background:rgba(59,47,29,.15); border-radius:5px; overflow:hidden; }
 .range-fill { position:absolute; left:0; top:0; height:10px; width:50%;
-              background:var(--accent); border-radius:5px; }
+              background:linear-gradient(90deg, #a98f4f, var(--gold-dim));
+              border-radius:5px; }
 #certainty { -webkit-appearance:none; appearance:none; position:relative;
              width:100%; height:20px; margin:0; padding:0; border:none;
              background:transparent; outline:none; cursor:pointer; }
 #certainty::-webkit-slider-thumb { -webkit-appearance:none; appearance:none;
-             width:20px; height:20px; border-radius:50%; background:var(--accent);
-             border:2px solid #0f1420; box-shadow:0 0 0 1px var(--line); }
+             width:20px; height:20px; border-radius:50%;
+             background:linear-gradient(180deg, var(--gold), var(--gold-dim));
+             border:2px solid #4a3a1a; box-shadow:0 1px 3px rgba(0,0,0,.4); }
 #certainty::-moz-range-thumb { width:20px; height:20px; border-radius:50%;
-             background:var(--accent); border:2px solid #0f1420; }
+             background:var(--gold); border:2px solid #4a3a1a; }
 .row { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center; }
-.hint { border-left:3px solid var(--warn); padding:6px 10px; margin-top:10px;
-        background:#2a2620; border-radius:0 8px 8px 0; }
-.hint .src { color:var(--dim); font-size:12px; }
-.explain { border-left:3px solid var(--good); padding:8px 12px; margin-top:12px;
-           background:#1d2a24; border-radius:0 8px 8px 0; white-space:pre-wrap; }
-.explain .src { color:var(--dim); font-size:12px; }
+.row button { background:#fff9ec; border:1px solid var(--paper-line);
+              color:var(--ink); font-weight:600; }
+.row button:hover:not(:disabled) { background:#f4e9cc; }
+#btn-next { background:#2c4066 !important; color:#dce6ff !important;
+            border-color:#1b2c4d !important; }
+.hint { border-left:3px solid #a3722a; padding:6px 10px; margin-top:10px;
+        background:rgba(163,114,42,.10); border-radius:0 8px 8px 0; }
+.hint .src { color:#8a7448; font-size:12px; }
+.explain { border-left:3px solid #56743a; padding:8px 12px; margin-top:12px;
+           background:rgba(86,116,58,.12); border-radius:0 8px 8px 0;
+           white-space:pre-wrap; }
+.explain .src { color:#5c6e44; font-size:12px; }
 #verdict { margin-top:14px; }
-.verdict-line { font-size:16px; font-weight:700; }
-.verdict-line.good { color:var(--good); } .verdict-line.bad { color:var(--bad); }
-#status { color:var(--dim); font-size:13px; min-height:18px; margin-top:6px; }
+.verdict-line { font:700 16px Georgia, serif; }
+.verdict-line.good { color:#2e5220; } .verdict-line.bad { color:#8a2f1d; }
+
+/* ---- stats tab ---- */
+.stat-card { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+             padding:16px; margin-top:14px; }
+.stat-card h2 { font:600 15px Georgia, serif; color:var(--gold);
+                letter-spacing:.06em; margin-bottom:12px; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));
+         gap:10px; }
+.tile { background:var(--panel-2); border:1px solid var(--line); border-radius:12px;
+        padding:12px 14px; text-align:center; }
+.tile .num { font:700 22px Georgia, serif; color:var(--gold);
+             font-variant-numeric:tabular-nums; }
+.tile .lbl { font-size:11px; color:var(--dim); letter-spacing:.08em;
+             text-transform:uppercase; margin-top:2px; }
+.tile .num.good { color:var(--good); }
+.tbar .bar { display:flex; align-items:center; gap:10px; margin:6px 0; }
+.tbar .name { width:100px; font-size:13px; color:var(--text); }
+.tbar .track { flex:1; height:14px; background:#0c111c; border-radius:7px;
+               overflow:hidden; }
+.tbar .fill { height:100%; border-radius:7px; transition:width .5s;
+              background:linear-gradient(90deg, var(--gold-dim), var(--gold)); }
+.tbar .val { width:190px; font-size:12px; color:var(--dim); text-align:right;
+             font-variant-numeric:tabular-nums; }
+.levelrow { display:grid; grid-template-columns:repeat(9, 1fr); gap:6px; }
+.lvl { text-align:center; padding:8px 2px; border-radius:8px;
+       border:1px solid var(--line); background:var(--panel-2); }
+.lvl .pct { font-weight:700; font-size:15px; }
+.lvl .cnt { font-size:11px; color:var(--dim); }
+.lvl .tag { font-size:11px; color:var(--dim); display:block; }
+.heat { display:grid; gap:3px; font-size:11px; }
+.heat .hname { color:var(--dim); text-align:right; padding-right:6px;
+               align-self:center; }
+.heat .hcell { border-radius:5px; padding:6px 2px; text-align:center;
+               color:#f2f5fb; font-variant-numeric:tabular-nums; min-height:30px;
+               align-self:center; border:1px solid rgba(255,255,255,.06); }
+.heat .hempty { background:var(--panel-2); border:1px dashed var(--line);
+                min-height:30px; border-radius:5px; }
+.heat .hhead { color:var(--gold-dim); text-align:center; font-weight:600;
+               padding:2px; }
+table.full { width:100%; border-collapse:collapse; font-size:12.5px; }
+table.full td, table.full th { padding:5px 7px;
+                               border-bottom:1px solid var(--line); text-align:left; }
+table.full th { color:var(--gold-dim); font-weight:600; font-size:11px;
+                letter-spacing:.06em; text-transform:uppercase; }
+.mono { font-variant-numeric:tabular-nums; }
+.spark-wrap svg { width:100%; height:110px; display:block; }
+.legend { display:flex; gap:14px; font-size:11px; color:var(--dim);
+          margin-top:8px; flex-wrap:wrap; }
+.legend .sw { display:inline-block; width:10px; height:10px; border-radius:3px;
+              margin-right:5px; vertical-align:-1px; }
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
-  <h1>🦘 Kangaroo Trainer</h1>
+  <h1>☠ Kangaroo Trainer</h1>
   <div class="hdr-right">
     <input name="user" placeholder="your name" value="guest">
     <span class="timer" id="timer"></span>
   </div>
 </header>
-<div id="scene-box" title="Your general Elo, as a pirate attack — click for the per-topic ratings">
-  <div id="elo-box">
-    <span id="elo-label">GENERAL ELO</span>
-    <span id="elo-value">700</span><span id="elo-delta"></span>
-  </div>
-  <canvas id="pirate-scene" width="200" height="60"></canvas>
-  <div id="elo-pop">
-    <h3>Your ratings per topic</h3>
-    <div class="bars" id="bars"></div>
-    <h3 style="margin-top:10px">Recent attempts</h3>
-    <table class="hist" id="hist"></table>
-  </div>
-</div>
-<div id="status">Loading…</div>
 
-<div class="card" id="problem-card">
-  <div><span class="chip" id="p-topic"></span><span class="chip" id="p-year"></span>
-       <span class="chip" id="p-level"></span>
-       <span class="chip" id="p-diff"></span></div>
-  <div id="p-text" style="display:none"></div>
-  <img class="problem" id="p-img" style="display:none">
-  <div class="opts" id="p-opts"></div>
-  <div class="sliders">
-    <span class="muted">How sure?</span>
-    <div class="range-wrap">
-      <div class="range-track"><div class="range-fill" id="certainty-fill"></div></div>
-      <input type="range" id="certainty" min="1" max="5" step="1" value="5">
-    </div>
-    <span class="chip" id="certainty-label">totally sure</span>
-  </div>
-  <div class="row">
-    <button id="btn-answer" disabled>Answer</button>
-    <button id="btn-hint">Get a hint</button>
-    <button id="btn-reveal" style="display:none">Reveal the answer</button>
-    <button id="btn-next" style="display:none">Next problem →</button>
-    <button id="btn-skip">Skip</button>
-  </div>
-  <div id="hint-box"></div>
-  <div id="verdict" style="display:none"></div>
+<div class="tabs">
+  <button class="tab active" data-tab="practice">⚔ Practice</button>
+  <button class="tab" data-tab="stats">📊 Statistics</button>
 </div>
+
+<section id="tab-practice">
+  <div id="scene-box" title="Your general Elo, as a pirate attack — click for the per-topic ratings">
+    <div id="elo-box">
+      <span id="elo-label">GENERAL ELO</span>
+      <span id="elo-value">700</span><span id="elo-delta"></span>
+    </div>
+    <canvas id="pirate-scene" width="200" height="60"></canvas>
+    <div id="elo-pop">
+      <h3>Your ratings per topic</h3>
+      <div class="bars" id="bars"></div>
+      <h3 style="margin-top:10px">Recent attempts</h3>
+      <table class="hist" id="hist"></table>
+    </div>
+  </div>
+  <div id="status">Loading…</div>
+
+  <div id="problem-card">
+    <div><span class="chip" id="p-topic"></span><span class="chip" id="p-year"></span>
+         <span class="chip" id="p-level"></span>
+         <span class="chip" id="p-diff"></span></div>
+    <div id="p-text" style="display:none"></div>
+    <img class="problem" id="p-img" style="display:none">
+    <div class="opts" id="p-opts"></div>
+    <div class="sliders">
+      <span class="muted">How sure?</span>
+      <div class="range-wrap">
+        <div class="range-track"><div class="range-fill" id="certainty-fill"></div></div>
+        <input type="range" id="certainty" min="1" max="5" step="1" value="5">
+      </div>
+      <span class="chip" id="certainty-label">totally sure</span>
+    </div>
+    <div class="row">
+      <button id="btn-answer" disabled>Answer</button>
+      <button id="btn-hint">Get a hint</button>
+      <button id="btn-reveal" style="display:none">Reveal the answer</button>
+      <button id="btn-next" style="display:none">Next problem →</button>
+      <button id="btn-skip">Skip</button>
+    </div>
+    <div id="hint-box"></div>
+    <div id="verdict" style="display:none"></div>
+  </div>
+</section>
+
+<section id="tab-stats" style="display:none">
+  <div class="tiles" id="tiles"></div>
+  <div class="stat-card">
+    <h2>Elo evolution</h2>
+    <div class="spark-wrap" id="spark"></div>
+  </div>
+  <div class="stat-card">
+    <h2>Rating by topic</h2>
+    <div class="tbar" id="topic-bars"></div>
+  </div>
+  <div class="stat-card">
+    <h2>Accuracy by level</h2>
+    <div class="levelrow" id="levels"></div>
+  </div>
+  <div class="stat-card">
+    <h2>Topic × level heatmap</h2>
+    <div class="heat" id="heat"></div>
+    <div class="legend">
+      <span><span class="sw" style="background:hsl(120 45% 30%)"></span>strong</span>
+      <span><span class="sw" style="background:hsl(60 45% 30%)"></span>shaky</span>
+      <span><span class="sw" style="background:hsl(0 45% 30%)"></span>weak</span>
+      <span>cell = % correct (hover for the count)</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <h2>Attempt history</h2>
+    <table class="full" id="full-hist"></table>
+  </div>
+</section>
 </div>
 
 <script src="/static/pirates.js"></script>
@@ -157,7 +287,7 @@ const LETTERS = ["A","B","C","D","E"];
 const SURE = ["a guess","not sure","thinking","quite sure","totally sure"];
 const user = () => document.querySelector("input[name=user]").value.trim() || "guest";
 let problem = null, certainty = 3, choice = null, startTs = 0, hintRung = 0,
-    timerId = null, overall = 800, answered = false;
+    timerId = null, overall = 800, answered = false, lastStats = null;
 const $ = id => document.getElementById(id);
 const show = (el, on) => el.style.display = on ? "" : "none";
 
@@ -307,6 +437,8 @@ async function answer(){
     show($("btn-next"), true); show($("btn-skip"), false);
     setOverall(r.overall_before, r.overall_after);
     overall = r.overall_after;
+    lastStats = null;               // the stats tab will refetch
+    if (!$("tab-stats").hidden) renderStats();
     v.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (e){
     setStatus("Error: " + e.message);
@@ -348,30 +480,162 @@ async function hint(){
   } catch (e){ setStatus("Error: " + e.message); hintRung -= 1; $("btn-hint").disabled = false; }
 }
 
-async function refreshPopover(){
-  try {
-    const s = await api(`/api/stats?user=${encodeURIComponent(user())}`);
-    overall = s.overall;
-    $("elo-value").textContent = s.overall;
-    if (window.Pirates) Pirates.setTarget(s.overall);
-    const bars = $("bars"); bars.innerHTML = "";
-    const entries = Object.entries(s.ratings).sort((a,b) => a[0].localeCompare(b[0]));
-    const lo = 600, hi = 1100;
-    entries.forEach(([t, v]) => {
-      const pct = Math.max(2, Math.min(100, (v.rating - lo)/(hi - lo)*100));
-      bars.insertAdjacentHTML("beforeend",
-        `<div class="bar"><span class="name">${t}</span>` +
-        `<div class="track"><div class="fill" style="width:${pct}%"></div></div>` +
-        `<span class="val">${v.rating} · ${v.n} tried</span></div>`);
-    });
-    const h = $("hist");
-    h.innerHTML = "<tr><th>problem</th><th>topic</th><th></th><th>sure</th><th>time</th></tr>" +
-      s.attempts.slice(0, 8).map(a =>
-        `<tr><td>${a.problem}</td><td>${a.topic}</td>` +
-        `<td class="${a.correct ? "good-text" : "bad-text"}">${a.correct ? "✔" : "✘"}</td>` +
-        `<td>${a.certainty}/5</td><td>${a.seconds}s</td></tr>`).join("");
-  } catch (e){ /* the popover just stays as it is */ }
+/* ============================ statistics tab ============================ */
+
+function cellColor(acc){
+  // green -> yellow -> red, dim so the numbers stay readable
+  return `hsl(${Math.round(120 * acc)} 45% ${28 + 6 * (1 - acc)}%)`;
 }
+
+function sparkline(points){
+  const w = 800, h = 110, p = 10;
+  if (!points || points.length < 2)
+    return `<div class="muted">Answer a few problems and your voyage appears here.</div>`;
+  const vals = points.map(pt => pt[1]);
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max - min) || 1;
+  const xy = points.map((pt, i) => [
+    p + i * (w - 2 * p) / (points.length - 1),
+    h - p - (pt[1] - min) / span * (h - 2 * p)]);
+  const line = xy.map(v => v[0].toFixed(1) + "," + v[1].toFixed(1)).join(" ");
+  const area = `${p},${h - p} ` + line + ` ${w - p},${h - p}`;
+  const last = xy[xy.length - 1];
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polygon points="${area}" fill="rgba(242,193,78,.10)"/>
+    <polyline points="${line}" fill="none" stroke="var(--gold)" stroke-width="2.5"
+      stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="4.5" fill="var(--gold)"/>
+  </svg>
+  <div class="muted mono">start ${vals[0]} · min ${min} · max ${max} · now <b>${vals[vals.length-1]}</b></div>`;
+}
+
+async function fetchStats(){
+  try { lastStats = await api(`/api/stats?user=${encodeURIComponent(user())}`); }
+  catch (e){ /* keep the old payload */ }
+  return lastStats;
+}
+
+function renderTiles(s){
+  const t = s.totals, fire = t.streak >= 3 ? " 🔥" : "";
+  const tiles = [
+    [s.overall, "general elo", ""],
+    [t.accuracy + "%", "accuracy", t.accuracy >= 50 ? "good" : ""],
+    [t.correct + " / " + t.n, "problems", ""],
+    [t.streak + fire, "streak", t.streak >= 3 ? "good" : ""],
+    [t.best_streak, "best streak", ""],
+    [t.mean_seconds + " s", "mean time", ""],
+    [t.hints, "hints used", ""],
+  ];
+  $("tiles").innerHTML = tiles.map(([num, lbl, cls]) =>
+    `<div class="tile"><div class="num ${cls}">${num}</div><div class="lbl">${lbl}</div></div>`).join("");
+}
+
+function renderTopicBars(s){
+  const lo = 600, hi = 1100;
+  const entries = Object.entries(s.ratings).sort((a, b) => b[1].rating - a[1].rating);
+  $("topic-bars").innerHTML = entries.map(([t, v]) => {
+    const pct = Math.max(2, Math.min(100, (v.rating - lo) / (hi - lo) * 100));
+    const acc = v.total ? Math.round(100 * v.correct / v.total) : null;
+    return `<div class="bar"><span class="name">${t}</span>` +
+      `<div class="track"><div class="fill" style="width:${pct}%"></div></div>` +
+      `<span class="val">${v.rating} Elo · ${acc === null ? "no attempts yet" :
+        acc + "% of " + v.total}</span></div>`;
+  }).join("");
+}
+
+function renderLevels(s){
+  const keys = Object.keys(s.by_level);
+  $("levels").innerHTML = keys.map(k => {
+    const [c, n] = s.by_level[k];
+    const pct = Math.round(100 * c / n);
+    return `<div class="lvl"><span class="tag">${k === "?" ? "?" : "L" + k}</span>` +
+      `<div class="pct" style="color:${cellColor(pct / 100)}">${pct}%</div>` +
+      `<div class="cnt">${c}/${n}</div></div>`;
+  }).join("") || `<div class="muted">No attempts yet.</div>`;
+}
+
+function renderHeat(s){
+  const topics = Object.keys(s.ratings);
+  const levels = [...new Set(Object.values(s.heatmap).flatMap(h => Object.keys(h)))]
+    .sort((a, b) => (parseInt(a) || 99) - (parseInt(b) || 99));
+  let html = `<div class="hhead"></div>` +
+    levels.map(l => `<div class="hhead">${l === "?" ? "?" : "L" + l}</div>`).join("");
+  topics.forEach(t => {
+    html += `<div class="hname">${t}</div>`;
+    levels.forEach(l => {
+      const cell = (s.heatmap[t] || {})[l];
+      if (!cell){ html += `<div class="hempty"></div>`; return; }
+      const [c, n] = cell, pct = c / n;
+      html += `<div class="hcell" style="background:${cellColor(pct)}"
+        title="${t} · level ${l}: ${c}/${n} correct">${Math.round(100 * pct)}%</div>`;
+    });
+  });
+  $("heat").style.gridTemplateColumns = `110px repeat(${levels.length}, 1fr)`;
+  $("heat").innerHTML = html;
+}
+
+function renderHistory(s){
+  const when = ts => new Date(ts * 1000).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  $("full-hist").innerHTML =
+    "<tr><th>when</th><th>problem</th><th>topic</th><th>lvl</th>" +
+    "<th>answer</th><th></th><th>sure</th><th>time</th><th>hints</th><th>Δelo</th></tr>" +
+    s.attempts.map(a => {
+      const mark = a.correct ? `<span class="good-text">✔</span>` :
+                               `<span class="bad-text">✘</span>`;
+      const ans = a.answer ? `${a.answer}${a.correct ? "" : " → " + (a.label || "?")}` : "—";
+      const d = a.delta >= 0 ? `+${a.delta}` : a.delta;
+      return `<tr><td class="mono">${when(a.ts)}</td><td>${a.problem}</td>` +
+        `<td>${a.topic}</td><td class="mono">${a.level ?? "?"}</td>` +
+        `<td class="mono">${ans}</td><td>${mark}</td>` +
+        `<td class="mono">${a.certainty}/5</td><td class="mono">${a.seconds}s</td>` +
+        `<td class="mono">${a.hint_rung || ""}</td>` +
+        `<td class="mono ${a.delta >= 0 ? "good-text" : "bad-text"}">${d}</td></tr>`;
+    }).join("") || `<tr><td colspan="10" class="muted">No attempts yet.</td></tr>`;
+}
+
+function renderPopover(s){
+  overall = s.overall;
+  $("elo-value").textContent = s.overall;
+  if (window.Pirates) Pirates.setTarget(s.overall);
+  const lo = 600, hi = 1100;
+  const bars = $("bars"); bars.innerHTML = "";
+  Object.entries(s.ratings).sort((a, b) => a[0].localeCompare(b[0])).forEach(([t, v]) => {
+    const pct = Math.max(2, Math.min(100, (v.rating - lo) / (hi - lo) * 100));
+    bars.insertAdjacentHTML("beforeend",
+      `<div class="bar"><span class="name">${t}</span>` +
+      `<div class="track"><div class="fill" style="width:${pct}%"></div></div>` +
+      `<span class="val">${v.rating} · ${v.n} tried</span></div>`);
+  });
+  $("hist").innerHTML =
+    "<tr><th>problem</th><th>topic</th><th></th><th>sure</th><th>time</th></tr>" +
+    s.attempts.slice(0, 8).map(a =>
+      `<tr><td>${a.problem}</td><td>${a.topic}</td>` +
+      `<td class="${a.correct ? "good-text" : "bad-text"}">${a.correct ? "✔" : "✘"}</td>` +
+      `<td>${a.certainty}/5</td><td>${a.seconds}s</td></tr>`).join("");
+}
+
+async function renderStats(){
+  const s = await fetchStats();
+  if (!s) return;
+  renderTiles(s); renderTopicBars(s); renderLevels(s);
+  renderHeat(s); renderHistory(s);
+  $("spark").innerHTML = sparkline(s.evolution);
+}
+
+async function refreshPopover(){
+  const s = await fetchStats();
+  if (s) renderPopover(s);
+}
+
+/* ---- tab switching ---- */
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(b =>
+    b.classList.toggle("active", b.dataset.tab === name));
+  show($("tab-practice"), name === "practice");
+  show($("tab-stats"), name === "stats");
+  if (name === "stats") renderStats();
+}
+document.querySelectorAll(".tab").forEach(b =>
+  b.onclick = () => switchTab(b.dataset.tab));
 
 $("scene-box").onclick = async () => {
   const pop = $("elo-pop");
