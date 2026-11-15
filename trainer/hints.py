@@ -100,6 +100,11 @@ def model_hint(problem, label, llm, index=None, problems=(), bank=None,
         p_text = p_text[:300] + "..."
     user_text = f"Problem:\n{p_text}"
     if solution:
+        # drop the landing sentence (it holds the answer) - steps 1-2 are
+        # what a first-step hint mirrors
+        sentences = re.split(r"(?<=[.!?])\s+", solution.strip())
+        if len(sentences) > 1:
+            solution = " ".join(sentences[:-1])
         if len(solution) > 200:  # step 1 is what the hint needs anyway
             solution = solution[:200] + "..."
         user_text += f"\n\nWorked solution:\n{solution}"
