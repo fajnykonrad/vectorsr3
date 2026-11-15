@@ -30,7 +30,12 @@ FALLBACK = CONFIG["FALLBACK_ANSWER"]
 MARGIN = 3.0  # seconds kept free for Python and for writing the answer
 VOTES = 8     # neighbours whose answers form the kNN prior
 FUSION = os.environ.get("FUSION", "1").lower() not in ("0", "false", "off")
-HEURISTICS = os.environ.get("HEURISTICS", "1").lower() not in ("0", "false", "off")
+
+
+def heuristics_enabled():
+    """Read at call time, not import time: eval.py/predict.py set HEURISTICS=0
+    after importing this module, so a module-level constant would miss it."""
+    return os.environ.get("HEURISTICS", "1").lower() not in ("0", "false", "off")
 
 
 def label_votes(hits):
@@ -60,7 +65,7 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
     # The two measured heuristics (copilot/prior.py) answer where they beat
     # the model, instantly and deterministically. HEURISTICS=0 turns them off
     # so eval.py can measure the raw model on the same problems.
-    if HEURISTICS:
+    if heuristics_enabled():
         if not problem.get("options"):
             prior = level_prior().get(problem.get("level"), FALLBACK)
             result["answer"] = prior
