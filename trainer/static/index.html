@@ -288,12 +288,15 @@ async function answer(){
       `</div>`;
     if (r.explanation){
       const ex = r.explanation;
+      const opt = r.options && r.options[r.label] ? `) ${r.options[r.label]}` : "";
       let html =
-        `<div class="explain"><span class="src">Why the answer is ${r.label} ` +
+        `<div class="explain"><span class="src">Why the answer is ${r.label}${opt} ` +
         `(${ex.source}):</span><br>${ex.text}</div>`;
       if (ex.neighbour){
         const n = ex.neighbour;
-        const nAnswer = n.label ? ` — answer ${n.label}` : "";
+        const nOpt = n.label && n.options && n.options[n.label]
+          ? `) ${n.options[n.label]}` : "";
+        const nAnswer = n.label ? ` — answer ${n.label}${nOpt}` : "";
         html +=
           `<div class="hint"><span class="src">A similar solved problem ` +
           `(${n.source}${nAnswer}):</span><br>${n.text}</div>`;
@@ -334,9 +337,10 @@ async function hint(){
       box.insertAdjacentHTML("beforeend",
         `<div class="hint"><span class="src">Rung 3 · from the model:</span><br>${r.text}</div>`);
     } else if (r.rung === 4){
+      const val = r.options && r.options[r.label] ? `) ${r.options[r.label]}` : "";
       box.insertAdjacentHTML("beforeend",
         `<div class="hint"><span class="src">Rung 4 · revealed:</span> the answer is ` +
-        `<b>${r.label}</b></div>`);
+        `<b>${r.label}${val}</b></div>`);
     }
     if (hintRung < 4) $("btn-hint").disabled = false;
     if (hintRung >= 3) show($("btn-reveal"), true);
