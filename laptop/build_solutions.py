@@ -51,7 +51,7 @@ def solve(problem, url):
     ladder: temperature 0.4, then 0.0."""
     messages = _explain_messages(problem, problem["label"],
                                  strategy_hint(problem))
-    last_error = None
+    text, last_error = None, None
     for temperature in (0.4, 0.0):
         try:
             raw = call(url, messages, temperature, max_tokens=450)
