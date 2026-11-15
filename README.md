@@ -6,6 +6,8 @@ problems, 108 languages) to both **reason** and **teach**.
 
 The team: Konrad Danielewicz, Alex Pons, Marc Cabrero, Andrei Vasilev.
 
+Acces to the interface: http://10.198.33.209:8001/
+
 ## What the copilot does
 
 **Reason** (measured by the jury on a hidden test): `predict.py` answers
@@ -22,6 +24,8 @@ ends in the answer only on purpose, and a step-by-step explanation after a
 wrong answer - generated offline with a 4B model, validated in code, and
 served from the board instantly.
 
+![The Trainer on the board: hint ladder, Elo, and a bank explanation after a wrong answer](docs/trainer-demo.png)
+
 ## The board services
 
 | Service | Port | What it is |
@@ -30,8 +34,7 @@ served from the board instantly.
 | `math-llm` | 8081 | llama.cpp + Qwen3.5-0.8B (letter answers, hints, explanations) |
 | `math-embed` | 8082 | llama.cpp + bge-small (384-dim embeddings for retrieval) |
 
-All three are systemd units (survive reboots, restart on failure). The
-Trainer UI: <http://10.198.33.209:8001> on the demo Wi-Fi.
+All three are systemd units (survive reboots, restart on failure).
 
 ## How M3Kang is used
 
@@ -123,8 +126,7 @@ for in Elo.
    `solutions.jsonl`, `tags.json`, `train.jsonl`, `val.jsonl`, `index.db`,
    `images/`.
 3. Rebuild the retrieval index: `python3 build_index.py --only-with-options`.
-4. Check the services: `systemctl status math-llm math-embed math-trainer`
-   (units included in the repo, `board/systemd/`).
+4. Check the services: `systemctl status math-llm math-embed math-trainer`.
 5. Tag the problems: `python3 -m trainer.build_tags --embed-url
    http://127.0.0.1:8082`.
 6. Open port 8001 and practice. Verify explanations with
