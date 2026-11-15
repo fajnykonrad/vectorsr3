@@ -326,8 +326,7 @@ async function hint(){
       const n = r.neighbour;
       box.insertAdjacentHTML("beforeend",
         `<div class="hint"><span class="src">Rung 1 · a similar solved problem (${r.source}):</span><br>` +
-        `${n.text}<br><details><summary>Show its answer</summary> ` +
-        `<b>${n.label}</b></details></div>`);
+        `${n.text}</div>`);
     } else if (r.rung === 2){
       box.insertAdjacentHTML("beforeend",
         `<div class="hint"><span class="src">Rung 2 · the method:</span><br>${r.text}</div>`);

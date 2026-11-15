@@ -71,7 +71,7 @@ topic rating + 60, never one of the last 20 seen.
 ## The hint ladder
 
 1. A similar solved problem (embedding neighbour, else same topic at a lower
-   level) — its answer stays behind a click.
+   level) — shown without its answer.
 2. The topic's strategy cue, written by hand, no model.
 3. ONE sentence from the model, leak-checked in code: rejected if it contains
    any option value or names the correct letter; falls back to rung 2.
