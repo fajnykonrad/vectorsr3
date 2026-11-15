@@ -314,7 +314,8 @@ class Handler(BaseHTTPRequestHandler):
                 rung = max(1, min(3, int(params.get("rung") or 1)))
                 result = hint_rung(rung, problem, problem["label"],
                                    index=trainer.index, problems=trainer.problems,
-                                   llm=llm_call if rung == 2 else None)
+                                   llm=llm_call if rung == 2 else None,
+                                   bank=trainer.bank)
                 result.setdefault("rung", rung)
                 self._json(200, result)
             elif path == "/api/explain":

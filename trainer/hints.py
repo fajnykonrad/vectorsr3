@@ -11,6 +11,14 @@ from .topics import TOPICS
 
 MAX_HINT_WORDS = 35
 
+HINT_SYSTEM = (
+    "You give ONE short hint for a math problem. You are given the problem "
+    "and its worked solution. Write ONE sentence of at most 30 words that "
+    "guides the student to take only the FIRST step of the solution. Never "
+    "state the final answer, never name any option's value, never say which "
+    "letter is correct, and never mention that a solution was shown to you. "
+    "Start with 'Hint: '. Write in the same language as the problem.")
+
 
 def similar_problem(problem, index=None, problems=(), exclude_id=None):
     """Rung 1: (source, problem). The caller decides what to show."""
@@ -55,32 +63,60 @@ def leaks(hint, problem, label):
     return False
 
 
-def model_hint(problem, label, llm, timeout=20.0):
-    """Rung 3: one sentence from the model, leak-checked. (llm = callable)
+def model_hint(problem, label, llm, index=None, problems=(), bank=None,
+               timeout=25.0):
+    """Rung 2: one sentence from the model, grounded, leak-checked.
 
-    `llm(messages, timeout)` returns the model text; the server wires this to
-    the llama.cpp endpoint. Returns (text, status): status is "ok", "leaked"
-    (rejected) or "error".
+    A small model given only the bare problem writes generic advice ("place
+    the largest numbers..."), useless for the problem at hand. So it gets
+    the worked solution - from the bank when the problem has one, else the
+    similar solved problem from retrieval - and only has to compress it
+    into a first-step nudge. The leak check still rejects anything that
+    names an option value or the correct letter; two attempts, then the
+    caller falls back to the method cue.
     """
-    messages = [
-        {"role": "system",
-         "content": "You give ONE sentence of help with a math problem. "
-                    "Never say or compute the final answer, never name any "
-                    "option value, never say which letter is correct. "
-                    "At most 35 words. Start with 'Hint: '."},
-        {"role": "user", "content": problem["text"] + "\n\nGive one hint."},
-    ]
-    try:
-        text = llm(messages, timeout=timeout)
-    except Exception as error:
-        return None, f"error: {error}"
-    text = text.strip().strip('"')
-    words = text.split()
-    if len(words) > MAX_HINT_WORDS + 8:  # a little slack around the limit
-        text = " ".join(words[:MAX_HINT_WORDS]) + "..."
-    if leaks(text, problem, label):
-        return text, "leaked"
-    return text, "ok"
+    solution = None
+    if bank and problem["id"] in bank:
+        solution = bank[problem["id"]]["text"]
+    else:
+        found = similar_problem(problem, index=index, problems=problems,
+                                exclude_id=problem["id"])
+        if found:
+            _, neighbour = found
+            n_opts = neighbour.get("options") or {}
+            n_ans = str(neighbour.get("label") or "")
+            if n_ans in n_opts:
+                n_ans += f") {n_opts[n_ans]}"
+            n_text = neighbour["text"].strip()
+            if len(n_text) > 200:
+                n_text = n_text[:200] + "..."
+            solution = (f'A similar worked problem: "{n_text}" Its answer '
+                        f'is {n_ans}. Use the same idea for the problem '
+                        f'below.')
+    user_text = f"Problem:\n{problem['text'].strip()}"
+    if solution:
+        if len(solution) > 320:
+            solution = solution[:320] + "..."
+        user_text += f"\n\nWorked solution:\n{solution}"
+    user_text += "\n\nGive one hint about the first step, for the problem above."
+    messages = [{"role": "system", "content": HINT_SYSTEM},
+                {"role": "user", "content": user_text}]
+    last = ("error", None)
+    for temperature in (0.7, 0.3):
+        try:
+            raw = llm(messages, timeout=timeout, temperature=temperature,
+                      max_tokens=90)
+        except Exception as error:
+            return None, f"error: {error}"
+        text = clean_math_text(raw.strip().strip('"'))
+        words = text.split()
+        if len(words) > MAX_HINT_WORDS + 8:  # a little slack around the limit
+            text = " ".join(words[:MAX_HINT_WORDS]) + "..."
+        if leaks(text, problem, label):
+            last = ("leaked", text)
+            continue
+        return text, "ok"
+    return last[1], last[0]
 
 
 WRONG_LETTER = re.compile(
@@ -243,12 +279,14 @@ def clean_math_text(text):
     return text.strip()
 
 
-def hint_rung(rung, problem, label, index=None, problems=(), llm=None):
+def hint_rung(rung, problem, label, index=None, problems=(), llm=None,
+              bank=None):
     """The ladder entry point. Returns a dict for the API."""
     if rung <= 1:
         return {"rung": 1, "text": strategy_cue(problem)}
     if rung <= 2 and llm is not None:
-        text, status = model_hint(problem, label, llm)
+        text, status = model_hint(problem, label, llm, index=index,
+                                  problems=problems, bank=bank)
         if text and status == "ok":
             return {"rung": 2, "text": text, "status": status}
         return {"rung": 1, "text": strategy_cue(problem),
