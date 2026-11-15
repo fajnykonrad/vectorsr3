@@ -73,13 +73,43 @@ class Trainer:
         self.by_id = {p["id"]: p for p in self.problems}
         self.con = connect(db_path)
         self.index = make_index(index_path)
-        self.rng = random.Random(42)
         self.data_dir = data_dir
+        self.bank = self.make_bank()
+        self.rng = random.Random(42)
         # explanations are generated while the student reads the problem,
         # and shown only after a wrong answer: {id: (event, result)}
         self.explanations = {}
         self._expl_lock = threading.Lock()
-        print(f"{len(self.problems)} problems, index: {'yes' if self.index else 'no'}")
+        print(f"{len(self.problems)} problems, index: {'yes' if self.index else 'no'}, "
+              f"bank: {len(self.bank)}")
+
+    def make_bank(self):
+        """Precomputed explanations, status ok only, keyed by problem id.
+
+        One id can have entries in several languages; the trainer serves one
+        language per id, so prefer the entry that matches it.
+        """
+        path = os.path.join(self.data_dir, "solutions.jsonl")
+        if not os.path.exists(path):
+            return {}
+        entries = []
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    entry = json.loads(line)
+                    if entry.get("status") == "ok" and entry.get("text"):
+                        entries.append(entry)
+        best = {}
+        for entry in entries:
+            pid = entry["id"]
+            current = best.get(pid)
+            served = self.by_id.get(pid)
+            matches_served = (served is not None
+                              and entry.get("language") == served.get("language"))
+            if current is None or matches_served:
+                best[pid] = entry
+        print(f"bank: {len(best)} explanations from {path}")
+        return best
 
     def prefetch_explanation(self, problem):
         """Generate the wrong-answer explanation in the background."""
@@ -94,7 +124,8 @@ class Trainer:
             try:
                 holder["value"] = explain_answer(problem, problem["label"],
                                                  llm=llm_call, index=self.index,
-                                                 problems=self.problems)
+                                                 problems=self.problems,
+                                                 bank=self.bank)
             except Exception:
                 pass  # the answer endpoint generates one on demand instead
             finally:
@@ -116,13 +147,15 @@ class Trainer:
             entry = self.explanations.pop(pid, None)
         if entry is None:
             return explain_answer(problem, problem["label"], llm=llm_call,
-                                  index=self.index, problems=self.problems)
+                                  index=self.index, problems=self.problems,
+                                  bank=self.bank)
         event, holder = entry
         event.wait(timeout=60.0)
         value = holder.get("value")
         if value is None:
             value = explain_answer(problem, problem["label"], llm=llm_call,
-                                   index=self.index, problems=self.problems)
+                                   index=self.index, problems=self.problems,
+                                   bank=self.bank)
         return value
 
     def sanitized(self, problem):

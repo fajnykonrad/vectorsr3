@@ -189,24 +189,34 @@ def _fallback_explanation(problem, label, neighbour, source=None):
             "neighbour": _neighbour_payload(neighbour, source)}
 
 
-def explain_answer(problem, label, llm=None, index=None, problems=()):
+def explain_answer(problem, label, llm=None, index=None, problems=(),
+                   bank=None):
     """After a wrong answer: how to actually do this problem.
 
-    The answer is already revealed, so the model does not have to find it
-    (the one thing a 0.8B model cannot do). It only has to explain how one
-    CHECKS that the correct option fits, guided by the topic's method. The
-    similar solved problem from the retrieval index stays OUT of the prompt
+    Order of preference:
+    1. The precomputed bank (data/solutions.jsonl, generated offline with a
+       bigger model and validated): instant, best quality, no tokens.
+    2. The 0.8B model, verify-backwards with a 3-step scaffold: usable, and
+       refused by consistent() when it lands wrong.
+    3. The deterministic fallback: the worked neighbour plus the topic's
+       strategy cue. Always right, never brilliant.
+
+    The answer is already revealed, so the model never has to FIND it (the
+    one thing a 0.8B model cannot do); it only explains how one CHECKS that
+    the correct option fits, guided by the topic's method. The similar
+    solved problem from the retrieval index stays OUT of the model prompt
     (the model explained that one instead) and anchors the page and the
-    fallback instead. Every attempt is validated with consistent(): an
-    explanation that never lands on the correct value, or names another
-    letter as correct, is rejected; two failures (or no model) fall back to
-    the worked neighbour plus the topic strategy cue, which is always right.
+    fallback instead.
     """
     found = similar_problem(problem, index=index, problems=problems,
                             exclude_id=problem["id"])
     neighbour, neighbour_source = None, None
     if found:
         neighbour_source, neighbour = found
+
+    if bank is not None and problem["id"] in bank:
+        return {"text": bank[problem["id"]]["text"], "source": "bank",
+                "neighbour": _neighbour_payload(neighbour, neighbour_source)}
 
     if llm is None:
         return _fallback_explanation(problem, label, neighbour, neighbour_source)
