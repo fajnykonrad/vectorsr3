@@ -118,6 +118,7 @@ for in Elo.
   rating + 25% uniform; difficulty follows the topic rating; problems are
   seeded from level and difficulty and drift with the Elo of the people
   who attempt them.
+-**Setup**: To set the trainer up, you must run (`python3 -m trainer.server --host 0.0.0.0 --port 8001`) in the repo.
 
 ## Replicating on a board after steps 0-12
 
