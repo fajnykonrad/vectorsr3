@@ -23,6 +23,7 @@ import urllib.error
 from . import model
 from .config import CONFIG
 from .llm import URL, answer_distribution
+from .prior import level_prior, median_letter
 
 TIME_LIMIT = float(CONFIG["TIME_LIMIT_SECONDS"])
 FALLBACK = CONFIG["FALLBACK_ANSWER"]
@@ -55,16 +56,21 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
     start = time.perf_counter()
     result = {"answer": FALLBACK, "status": "ok", "prompt_tokens": 0, "retrieved": "",
               "examples": [], "probs": {}, "votes": {}}
-    # Optionless problems: the model cannot see the five options, so its
-    # distribution is A/D noise that measurably loses to the base rate
-    # (23.0% raw vs 25.6% always-D on 309 such validation problems, and the
-    # mix policy beat raw on the full cat+eng set). Answer the base rate
-    # immediately - deterministic, offline, and inside every time budget.
+    # The two measured heuristics (copilot/prior.py) answer where they beat
+    # the model, instantly and deterministically:
     if not problem.get("options"):
-        result["answer"] = FALLBACK
-        result["status"] = "ok-no-options"
+        prior = level_prior().get(problem.get("level"), FALLBACK)
+        result["answer"] = prior
+        result["status"] = "ok-level-prior"
         result["seconds"] = round(time.perf_counter() - start, 3)
         return result
+    median = median_letter(problem)
+    if median:
+        result["answer"] = median
+        result["status"] = "ok-median"
+        result["seconds"] = round(time.perf_counter() - start, 3)
+        return result
+    # everything else goes to the model, fused when a fit shipped
     try:
         examples, votes = [], {}
         if index is not None:

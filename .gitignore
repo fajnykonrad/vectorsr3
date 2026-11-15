@@ -4,6 +4,8 @@ data/*
 !data/README.md
 # The fitted fusion (6 learned numbers + metrics): no M3Kang content, commit it
 !data/model.json
+# Level -> letter prior learned from train: just letters, no problem text
+!data/level_prior.json
 
 # Results are created on each board
 results/*
