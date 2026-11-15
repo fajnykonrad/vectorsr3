@@ -1,21 +1,28 @@
-"""Two measured heuristics that beat the model on their own turf.
+"""Two measured heuristics that beat the model on their own turf, plus the
+uniform-letter calibration for the jury's test distribution.
 
-Both are deterministic, offline, and instant (no LLM call):
+All are deterministic, offline, and instant (no LLM call):
 
 - median option value: where all five options parse as numbers, the letter
   holding the median value answers better than the model (27.7% vs 22.8% on
-  the 329 numeric cat+eng validation problems). The classic multiple-choice
-  heuristic, and in Kangaroo sets the answer concentrates there.
+  the 329 numeric cat+eng M3Kang validation problems). The classic
+  multiple-choice heuristic: in M3Kang the answer concentrates at the median.
 - level prior: where the OCR could not read the options, the model's
   distribution is A/D noise; the most common true letter of the problem's
   level, learned from the eng+cat training problems, answers better (28.1%
   full policy vs 24.0% raw on the 562 cat+eng set).
+- uniform calibration: the jury's practice set states every letter is
+  correct equally often, and the model's letter marginal is far from uniform
+  (D 0.47 vs 0.20 expected). Dividing each letter's probability by its
+  marginal share (lambda ~0.8) scored 25-26% vs raw 20% on the practice set
+  and held up in a half-to-half split check. Only meaningful on a
+  uniform-letter distribution: on M3Kang keep it off (UNIFORM=0), on the
+  jury's test set set UNIFORM=1 (predict.py does when --uniform passes).
 
-Both were measured before shipping (tune_policy2.py) and neither is fitted
-on validation data: the median is a classical rule, the prior comes from
-train only.
+Measured before shipping in tune_policy2.py / calibrate_uniform.py.
 """
 import json
+import math
 import os
 import re
 
@@ -24,11 +31,12 @@ from .config import ROOT
 LETTERS = "ABCDE"
 NUM = re.compile(r"-?\d+(?:[.,]\d+)?")
 PRIOR_PATH = os.path.join(ROOT, "data", "level_prior.json")
+FLOOR = -12.0
 _prior = None
 
 
 def level_prior():
-    """{level(int): letter} from data/level_prior.json, else {}."""
+    """{level(int): letter} from data/level_prior.json, or {}."""
     global _prior
     if _prior is None:
         try:
@@ -56,3 +64,20 @@ def median_letter(problem):
             return None
     ordered = sorted(values, key=values.get)
     return ordered[2]
+
+
+def uniform_pick(probs, lam=0.8):
+    """argmax of log p(L) - lam * log q_L, with q the probs' own letter marginal.
+
+    Corrects the model's letter bias towards a uniform answer distribution,
+    for test sets whose true letters are stated to be uniform.
+    """
+    exps = {letter: math.exp(probs.get(letter, FLOOR)) for letter in LETTERS}
+    total = sum(exps.values()) or 1.0
+    q = {letter: exps[letter] / total for letter in LETTERS}
+    best, best_score = None, None
+    for letter in LETTERS:
+        score = math.log(max(exps[letter], 1e-12)) - lam * math.log(max(q[letter], 1e-9))
+        if best_score is None or score > best_score:
+            best, best_score = letter, score
+    return best
