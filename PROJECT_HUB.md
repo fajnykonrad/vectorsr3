@@ -19,9 +19,10 @@ practice, per-topic Elo ratings and a leak-checked hint ladder, and it
 backed by a 1,863-problem retrieval bank built from M3Kang. Nothing leaves
 the device.
 
-**Key numbers**: [OFFICIAL RUN NUMBER] accuracy on 562 cat+eng validation
-problems in under 60 s each (mean ~12 s); adaptive next-problem selection in
-under 1 s; hint rungs 1-2 under 1 s, rung 3 ~4 s with a code-enforced no-leak
+**Key numbers**: **27.8%** on the 562 cat+eng validation problems (always-D
+floor 23.1%, random 20%), answering in 0.1 s per problem on average (worst
+9.7 s, 0 over the 60 s limit); adaptive next-problem selection in under 1 s;
+hint rungs 1-2 under 1 s, rung 3 ~4 s with a code-enforced no-leak
 check (measured 80% served, 0 leaks on the probe set).
 
 ## Components and apps
@@ -97,7 +98,9 @@ A diagram (to add) and the text version:
 - Full ablation table on 789 validation problems (see the repository README,
   section "Team results"): raw 22.3%, fusion 21.8%, RAG 22.2%, 5-view
   ensemble 19.5%, 4B 22.5%, 4B+reasoning 11.7%. Always-D floor: 22.7%.
-- Official board run (cat+eng, 562 problems): [NUMBER - pending]
+- Official board run (cat+eng, 562 problems): **27.8%** (156/562), floor
+  always-D 23.1%, mean 0.1 s/problem, worst 9.7 s, 0 timeouts. Reproduce:
+  `eval.py --languages cat,eng --limit 0 --no-fusion --name official-final`.
 - Error analysis by topic, language, level and options: see the repository
   README. Weakest topics: geometry, area_volume. Strongest: numbers.
 - What didn't work, measured honestly: the fitted fusion overfit twice (we

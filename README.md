@@ -1285,7 +1285,7 @@ Both halves share the same llama.cpp servers (ports 8081/8082), the same retriev
 | 4B model raw (n=200) | 22.5% | 25.5% |
 | 4B + prompted reasoning | 11.7% | 15.0% |
 
-On the board (50 problems): raw 26.0%, 0 over the 60 s limit, worst 24.9 s. Every run is reproducible with `eval.py --name ...` and logged in `results/ablations.csv`.
+On the board, the official run (562 cat+eng validation problems, the shipped configuration): **27.8%**, against the always-D floor of 23.1% and random 20% — mean 0.1 s per problem, worst 9.7 s, 0 over the limit. The shipped pipeline is layered: median option value where the five options are numeric (27.7% vs 22.8% raw on those 329), level prior where the OCR found no options (learned from train), and the raw model with D fallback for the rest. Every layer was measured before shipping; the run is reproducible with `eval.py --languages cat,eng --limit 0 --name official-final` and logged in `results/ablations.csv`.
 
 ## Error analysis
 
