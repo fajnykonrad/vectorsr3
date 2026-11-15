@@ -27,7 +27,11 @@ def main():
     p.add_argument("--index", default="data/index.db")
     p.add_argument("--no-fusion", action="store_true",
                    help="ignore data/model.json and answer with the raw model")
+    p.add_argument("--no-heuristics", action="store_true",
+                   help="disable the median/level-prior layers")
     args = p.parse_args()
+    if args.no_heuristics:
+        os.environ["HEURISTICS"] = "0"
 
     index = None
     if args.rag or (not args.no_fusion and os.path.exists(args.index)):

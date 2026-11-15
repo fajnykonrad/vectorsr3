@@ -49,7 +49,11 @@ def main():
     p.add_argument("--name", default="", help="a label for this experiment in ablations.csv")
     p.add_argument("--no-fusion", action="store_true",
                    help="ignore data/model.json and answer with the raw model")
+    p.add_argument("--no-heuristics", action="store_true",
+                   help="disable the median/level-prior layers (measure the raw model)")
     args = p.parse_args()
+    if args.no_heuristics:
+        os.environ["HEURISTICS"] = "0"
 
     with open(args.input) as f:
         problems = [json.loads(line) for line in f if line.strip()]

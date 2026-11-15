@@ -30,6 +30,7 @@ FALLBACK = CONFIG["FALLBACK_ANSWER"]
 MARGIN = 3.0  # seconds kept free for Python and for writing the answer
 VOTES = 8     # neighbours whose answers form the kNN prior
 FUSION = os.environ.get("FUSION", "1").lower() not in ("0", "false", "off")
+HEURISTICS = os.environ.get("HEURISTICS", "1").lower() not in ("0", "false", "off")
 
 
 def label_votes(hits):
@@ -57,19 +58,21 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
     result = {"answer": FALLBACK, "status": "ok", "prompt_tokens": 0, "retrieved": "",
               "examples": [], "probs": {}, "votes": {}}
     # The two measured heuristics (copilot/prior.py) answer where they beat
-    # the model, instantly and deterministically:
-    if not problem.get("options"):
-        prior = level_prior().get(problem.get("level"), FALLBACK)
-        result["answer"] = prior
-        result["status"] = "ok-level-prior"
-        result["seconds"] = round(time.perf_counter() - start, 3)
-        return result
-    median = median_letter(problem)
-    if median:
-        result["answer"] = median
-        result["status"] = "ok-median"
-        result["seconds"] = round(time.perf_counter() - start, 3)
-        return result
+    # the model, instantly and deterministically. HEURISTICS=0 turns them off
+    # so eval.py can measure the raw model on the same problems.
+    if HEURISTICS:
+        if not problem.get("options"):
+            prior = level_prior().get(problem.get("level"), FALLBACK)
+            result["answer"] = prior
+            result["status"] = "ok-level-prior"
+            result["seconds"] = round(time.perf_counter() - start, 3)
+            return result
+        median = median_letter(problem)
+        if median:
+            result["answer"] = median
+            result["status"] = "ok-median"
+            result["seconds"] = round(time.perf_counter() - start, 3)
+            return result
     # everything else goes to the model, fused when a fit shipped
     try:
         examples, votes = [], {}
