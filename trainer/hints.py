@@ -1,11 +1,9 @@
-"""The hint ladder: four rungs, deterministic first, the model last.
+"""The hint ladder: three rungs, deterministic first, the model second.
 
-Rung 1: a similar solved problem, from the embedding index when it is up,
-        otherwise the nearest problem of the same topic at a lower level.
-Rung 2: the strategy cue for the topic, written by hand, no model involved.
-Rung 3: one short sentence from the language model, checked in code so it
-        cannot leak the answer; on any failure we serve rung 2 instead.
-Rung 4: the reveal, on purpose: the correct letter and the worked neighbour.
+Rung 1: the topic's strategy cue, written by hand, no model involved.
+Rung 2: one short sentence from the language model, checked in code so it
+        cannot leak the answer; on any failure we serve rung 1 instead.
+Rung 3: the reveal, on purpose: the correct letter with its value.
 """
 import re
 
@@ -135,16 +133,6 @@ EXPLAIN_SYSTEM = (
 )
 
 
-def _neighbour_payload(neighbour, source=None):
-    """The solved problem the explanation is anchored on, for the page."""
-    if neighbour is None:
-        return None
-    return {"id": neighbour["id"], "language": neighbour["language"],
-            "source": source or "topic",
-            "text": neighbour["text"], "label": neighbour.get("label"),
-            "options": neighbour.get("options") or {}}
-
-
 def _explain_messages(problem, label, strategy):
     """The prompt. No second problem in it: a 0.8B given a similar solved
     problem will explain (or conclude with) THAT one instead. The topic's
@@ -169,7 +157,8 @@ def _fallback_explanation(problem, label, neighbour, source=None):
     """No model or two failed attempts: assemble from retrieval, no tokens.
 
     Always decent, never wrong: the worked neighbour is a real problem from
-    the dataset with its real answer, plus the topic's strategy cue.
+    the dataset with its real answer, plus the topic's strategy cue. The
+    neighbour IS the content here, so it stays inside the text.
     """
     parts = []
     if neighbour is not None:
@@ -185,8 +174,7 @@ def _fallback_explanation(problem, label, neighbour, source=None):
                      f'solved the same way.')
     parts.append(strategy_cue(problem))
     return {"text": " ".join(parts),
-            "source": "retrieval" if neighbour is not None else "strategy",
-            "neighbour": _neighbour_payload(neighbour, source)}
+            "source": "retrieval" if neighbour is not None else "strategy"}
 
 
 def explain_answer(problem, label, llm=None, index=None, problems=(),
@@ -215,8 +203,7 @@ def explain_answer(problem, label, llm=None, index=None, problems=(),
         neighbour_source, neighbour = found
 
     if bank is not None and problem["id"] in bank:
-        return {"text": bank[problem["id"]]["text"], "source": "bank",
-                "neighbour": _neighbour_payload(neighbour, neighbour_source)}
+        return {"text": bank[problem["id"]]["text"], "source": "bank"}
 
     if llm is None:
         return _fallback_explanation(problem, label, neighbour, neighbour_source)
@@ -235,8 +222,7 @@ def explain_answer(problem, label, llm=None, index=None, problems=(),
             text = " ".join(words[:100]) + "..."
         last_text = text
         if consistent(text, problem, label):
-            return {"text": text, "source": "model",
-                    "neighbour": _neighbour_payload(neighbour, neighbour_source)}
+            return {"text": text, "source": "model"}
     # both attempts failed the check: the deterministic path wins
     fallback = _fallback_explanation(problem, label, neighbour, neighbour_source)
     if last_text:
@@ -260,25 +246,14 @@ def clean_math_text(text):
 def hint_rung(rung, problem, label, index=None, problems=(), llm=None):
     """The ladder entry point. Returns a dict for the API."""
     if rung <= 1:
-        found = similar_problem(problem, index=index, problems=problems,
-                                exclude_id=problem["id"])
-        if found:
-            source, neighbour = found
-            return {"rung": 1, "source": source, "neighbour": {
-                        "id": neighbour["id"], "language": neighbour["language"],
-                        "text": neighbour["text"], "topic": neighbour.get("topic"),
-                        "level": neighbour.get("level"), "label": neighbour.get("label"),
-                        "options": neighbour.get("options") or {}}}
-        rung = 2  # nothing similar: fall through to the strategy
-    if rung <= 2:
-        return {"rung": 2, "text": strategy_cue(problem)}
-    if rung <= 3 and llm is not None:
+        return {"rung": 1, "text": strategy_cue(problem)}
+    if rung <= 2 and llm is not None:
         text, status = model_hint(problem, label, llm)
         if text and status == "ok":
-            return {"rung": 3, "text": text, "status": status}
-        return {"rung": 2, "text": strategy_cue(problem),
+            return {"rung": 2, "text": text, "status": status}
+        return {"rung": 1, "text": strategy_cue(problem),
                 "status": status or "fallback"}
-    # rung 4, the reveal
+    # rung 3, the reveal
     options = problem.get("options") or {}
-    return {"rung": 4, "label": label, "options": options,
+    return {"rung": 3, "label": label, "options": options,
             "note": "The correct answer. The ladder stops here."}

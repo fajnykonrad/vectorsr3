@@ -311,10 +311,10 @@ class Handler(BaseHTTPRequestHandler):
                 problem = trainer.by_id.get(params.get("problem"))
                 if problem is None:
                     return self._json(404, {"error": "unknown problem"})
-                rung = max(1, min(4, int(params.get("rung") or 1)))
+                rung = max(1, min(3, int(params.get("rung") or 1)))
                 result = hint_rung(rung, problem, problem["label"],
                                    index=trainer.index, problems=trainer.problems,
-                                   llm=llm_call if rung == 3 else None)
+                                   llm=llm_call if rung == 2 else None)
                 result.setdefault("rung", rung)
                 self._json(200, result)
             elif path == "/api/explain":

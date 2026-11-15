@@ -510,15 +510,6 @@ async function answer(){
       let html =
         `<div class="explain"><span class="src">Why the answer is ${r.label}${opt} ` +
         `(${ex.source}):</span><br>${ex.text}</div>`;
-      if (ex.neighbour){
-        const n = ex.neighbour;
-        const nOpt = n.label && n.options && n.options[n.label]
-          ? `) ${n.options[n.label]}` : "";
-        const nAnswer = n.label ? ` — answer ${n.label}${nOpt}` : "";
-        html +=
-          `<div class="hint"><span class="src">A similar solved problem ` +
-          `(${n.source}${nAnswer}):</span><br>${n.text}</div>`;
-      }
       v.insertAdjacentHTML("beforeend", html);
     }
     show($("verdict"), true);
@@ -545,25 +536,20 @@ async function hint(){
     const r = await api(`/api/hint?user=${encodeURIComponent(user())}` +
                         `&problem=${problem.id}&rung=${hintRung}`);
     const box = $("hint-box");
-    if (r.rung === 1 && r.neighbour){
-      const n = r.neighbour;
+    if (r.rung === 1){
       box.insertAdjacentHTML("beforeend",
-        `<div class="hint"><span class="src">Rung 1 · a similar solved problem (${r.source}):</span><br>` +
-        `${n.text}</div>`);
+        `<div class="hint"><span class="src">Rung 1 · the method:</span><br>${r.text}</div>`);
     } else if (r.rung === 2){
       box.insertAdjacentHTML("beforeend",
-        `<div class="hint"><span class="src">Rung 2 · the method:</span><br>${r.text}</div>`);
+        `<div class="hint"><span class="src">Rung 2 · from the model:</span><br>${r.text}</div>`);
     } else if (r.rung === 3){
-      box.insertAdjacentHTML("beforeend",
-        `<div class="hint"><span class="src">Rung 3 · from the model:</span><br>${r.text}</div>`);
-    } else if (r.rung === 4){
       const val = r.options && r.options[r.label] ? `) ${r.options[r.label]}` : "";
       box.insertAdjacentHTML("beforeend",
-        `<div class="hint"><span class="src">Rung 4 · revealed:</span> the answer is ` +
+        `<div class="hint"><span class="src">Rung 3 · revealed:</span> the answer is ` +
         `<b>${r.label}${val}</b></div>`);
     }
-    if (hintRung < 4) $("btn-hint").disabled = false;
-    if (hintRung >= 3) show($("btn-reveal"), true);
+    if (hintRung < 3) $("btn-hint").disabled = false;
+    if (hintRung >= 2) show($("btn-reveal"), true);
     setStatus("");
   } catch (e){ setStatus("Error: " + e.message); hintRung -= 1; $("btn-hint").disabled = false; }
 }
