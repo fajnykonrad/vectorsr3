@@ -55,6 +55,16 @@ def solve(problem, index=None, k=0, exclude_id=None, image_b64=None, llm_url=URL
     start = time.perf_counter()
     result = {"answer": FALLBACK, "status": "ok", "prompt_tokens": 0, "retrieved": "",
               "examples": [], "probs": {}, "votes": {}}
+    # Optionless problems: the model cannot see the five options, so its
+    # distribution is A/D noise that measurably loses to the base rate
+    # (23.0% raw vs 25.6% always-D on 309 such validation problems, and the
+    # mix policy beat raw on the full cat+eng set). Answer the base rate
+    # immediately - deterministic, offline, and inside every time budget.
+    if not problem.get("options"):
+        result["answer"] = FALLBACK
+        result["status"] = "ok-no-options"
+        result["seconds"] = round(time.perf_counter() - start, 3)
+        return result
     try:
         examples, votes = [], {}
         if index is not None:
