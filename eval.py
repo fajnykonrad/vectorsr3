@@ -51,9 +51,14 @@ def main():
                    help="ignore data/model.json and answer with the raw model")
     p.add_argument("--no-heuristics", action="store_true",
                    help="disable the median/level-prior layers (measure the raw model)")
+    p.add_argument("--uniform", action="store_true",
+                   help="the test's true letters are uniform: disable heuristics and "
+                        "recalibrate the model's letter marginal to uniform (jury test mode)")
     args = p.parse_args()
-    if args.no_heuristics:
+    if args.no_heuristics or args.uniform:
         os.environ["HEURISTICS"] = "0"
+    if args.uniform:
+        os.environ["UNIFORM"] = "1"
 
     with open(args.input) as f:
         problems = [json.loads(line) for line in f if line.strip()]
