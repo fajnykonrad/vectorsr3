@@ -67,17 +67,23 @@ def median_letter(problem):
 
 
 def uniform_pick(probs, lam=0.8):
-    """argmax of log p(L) - lam * log q_L, with q the probs' own letter marginal.
+    """argmax of log p(L) - lam * log q_L, with q a FIXED calibration marginal.
 
-    Corrects the model's letter bias towards a uniform answer distribution,
-    for test sets whose true letters are stated to be uniform.
+    The marginal must be a constant measured across a whole set
+    (calibrate_uniform.py on the jury's practice set): computing it from the
+    single problem's own probs would be a no-op (q = p normalised, argmax
+    unchanged, everything stays the model's greedy D).
     """
-    exps = {letter: math.exp(probs.get(letter, FLOOR)) for letter in LETTERS}
-    total = sum(exps.values()) or 1.0
-    q = {letter: exps[letter] / total for letter in LETTERS}
     best, best_score = None, None
     for letter in LETTERS:
-        score = math.log(max(exps[letter], 1e-12)) - lam * math.log(max(q[letter], 1e-9))
+        score = probs.get(letter, FLOOR) - lam * math.log(JURY_MARGINALS[letter])
         if best_score is None or score > best_score:
             best, best_score = letter, score
     return best
+
+
+# The model's letter marginal on the jury's practice set (100 problems,
+# measured with calibrate_uniform.py): D 0.47, C 0.05 - far from the uniform
+# 0.20 the jury announces. The final test comes from the same authors, so
+# this vector is the system's calibration constant.
+JURY_MARGINALS = {"A": 0.249, "B": 0.128, "C": 0.047, "D": 0.465, "E": 0.111}
