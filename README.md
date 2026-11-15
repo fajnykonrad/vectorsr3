@@ -6,6 +6,10 @@ problems, 108 languages) to both **reason** and **teach**.
 
 The team: Konrad Danielewicz, Alex Pons, Marc Cabrero, Andrei Vasilev.
 
+## The demo
+
+[![Kangaroo Trainer on the Arduino UNO Q - demo](https://img.youtube.com/vi/UtEbwMgAgxk/maxresdefault.jpg)](https://www.youtube.com/watch?v=UtEbwMgAgxk)
+
 Acces to the interface: http://10.198.33.209:8001/
 
 ## What the copilot does
