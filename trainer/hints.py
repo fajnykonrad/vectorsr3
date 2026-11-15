@@ -64,16 +64,18 @@ def leaks(hint, problem, label):
 
 
 def model_hint(problem, label, llm, index=None, problems=(), bank=None,
-               timeout=25.0):
+               timeout=45.0):
     """Rung 2: one sentence from the model, grounded, leak-checked.
 
     A small model given only the bare problem writes generic advice ("place
     the largest numbers..."), useless for the problem at hand. So it gets
     the worked solution - from the bank when the problem has one, else the
     similar solved problem from retrieval - and only has to compress it
-    into a first-step nudge. The leak check still rejects anything that
-    names an option value or the correct letter; two attempts, then the
-    caller falls back to the method cue.
+    into a first-step nudge. The board reads ~11 tokens/s, so the solution
+    is trimmed to its first step (exactly what the hint needs) and the
+    prompt stays small. The leak check still rejects anything that names
+    an option value or the correct letter; two attempts, then the caller
+    falls back to the method cue.
     """
     solution = None
     if bank and problem["id"] in bank:
@@ -88,15 +90,18 @@ def model_hint(problem, label, llm, index=None, problems=(), bank=None,
             if n_ans in n_opts:
                 n_ans += f") {n_opts[n_ans]}"
             n_text = neighbour["text"].strip()
-            if len(n_text) > 200:
-                n_text = n_text[:200] + "..."
+            if len(n_text) > 150:
+                n_text = n_text[:150] + "..."
             solution = (f'A similar worked problem: "{n_text}" Its answer '
                         f'is {n_ans}. Use the same idea for the problem '
                         f'below.')
-    user_text = f"Problem:\n{problem['text'].strip()}"
+    p_text = problem["text"].strip()
+    if len(p_text) > 300:
+        p_text = p_text[:300] + "..."
+    user_text = f"Problem:\n{p_text}"
     if solution:
-        if len(solution) > 320:
-            solution = solution[:320] + "..."
+        if len(solution) > 200:  # step 1 is what the hint needs anyway
+            solution = solution[:200] + "..."
         user_text += f"\n\nWorked solution:\n{solution}"
     user_text += "\n\nGive one hint about the first step, for the problem above."
     messages = [{"role": "system", "content": HINT_SYSTEM},
