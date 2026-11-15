@@ -18,7 +18,7 @@ def load(data_dir="data", languages=None):
     tags = {}
     tags_path = os.path.join(data_dir, "tags.json")
     if os.path.exists(tags_path):
-        with open(tags_path) as f:
+        with open(tags_path, encoding="utf-8") as f:
             tags = json.load(f)
 
     problems = []
@@ -26,7 +26,7 @@ def load(data_dir="data", languages=None):
         path = os.path.join(data_dir, f"{split}.jsonl")
         if not os.path.exists(path):
             continue
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 if not line.strip():
                     continue

@@ -85,36 +85,137 @@ def model_hint(problem, label, llm, timeout=20.0):
     return text, "ok"
 
 
-def explain_answer(problem, label, llm=None):
-    """After a wrong answer: a considerable explanation of the correct path.
+def consistent(explanation, problem, label):
+    """True when the explanation could plausibly walk to the right answer.
 
-    The model walks through the solution in a few sentences (the answer is
-    already revealed, so no leak check). Falls back to the topic's strategy
-    cue when no model is reachable.
+    The model must land on the correct option's value: if the explanation
+    never mentions 20 while explaining why D) 20 is right, it is inventing
+    its own (wrong) path. Without options there is nothing to anchor on,
+    so any reasonably long text passes.
     """
-    if llm is not None:
-        messages = [
-            {"role": "system",
-             "content": "You explain school math clearly and warmly. The "
-                        "student answered this problem wrong. In at most 4 "
-                        "short sentences, walk through how to think about it "
-                        "step by step and reach the correct answer. Plain "
-                        "text only: no markdown, no asterisks, no LaTeX, "
-                        "write math in words or plain numbers."},
-            {"role": "user",
-             "content": problem["text"] + f"\n\nThe correct answer is {label}."},
-        ]
+    if not explanation or len(explanation.split()) < 8:
+        return False
+    value = str((problem.get("options") or {}).get(label, "")).strip()
+    if not value:
+        return True
+    low = explanation.lower()
+    pattern = r"(?<![\w.])" + re.escape(value.lower()) + r"(?![\w.])"
+    return re.search(pattern, low) is not None
+
+
+EXPLAIN_SYSTEM = (
+    "You explain math to school students. You get a problem with options, "
+    "its correct option, and a similar solved problem. Explain how to reach "
+    "the correct answer in exactly 3 short numbered steps: 1) what the "
+    "problem asks and what we know, 2) the reasoning or calculation using "
+    "the numbers, 3) why the correct option is the right one. Use only "
+    "numbers that appear in the problem, its options, or the solved problem. "
+    "Plain text: no markdown, no asterisks, no LaTeX. At most 80 words. "
+    "Write in the same language as the problem."
+)
+
+
+def _neighbour_payload(neighbour, source=None):
+    """The solved problem the explanation is anchored on, for the page."""
+    if neighbour is None:
+        return None
+    return {"id": neighbour["id"], "language": neighbour["language"],
+            "source": source or "topic",
+            "text": neighbour["text"], "label": neighbour.get("label"),
+            "options": neighbour.get("options") or {}}
+
+
+def _explain_messages(problem, label, neighbour=None):
+    lines = [problem["text"].strip()]
+    options = problem.get("options") or {}
+    for letter in "ABCDE":
+        if letter in options:
+            lines.append(f"{letter}) {options[letter]}")
+    target = f"The correct answer is {label}"
+    if label in options:
+        target += f") {options[label]}"
+    target += "."
+    parts = ["Problem:", "\n".join(lines), "", target]
+    if neighbour is not None:
+        n_text = neighbour["text"].strip()
+        if len(n_text) > 280:
+            n_text = n_text[:280] + "..."
+        n_options = neighbour.get("options") or {}
+        n_answer = str(neighbour.get("label") or "")
+        if n_answer in n_options:
+            n_answer += f") {n_options[n_answer]}"
+        parts += ["", "A similar solved problem:", n_text,
+                  f"Its answer is {n_answer}."]
+    parts += ["", "Explain the first problem in the 3 steps."]
+    return [{"role": "system", "content": EXPLAIN_SYSTEM},
+            {"role": "user", "content": "\n".join(parts)}]
+
+
+def _fallback_explanation(problem, label, neighbour, source=None):
+    """No model or two failed attempts: assemble from retrieval, no tokens.
+
+    Always decent, never wrong: the worked neighbour is a real problem from
+    the dataset with its real answer, plus the topic's strategy cue.
+    """
+    parts = []
+    if neighbour is not None:
+        n_text = neighbour["text"].strip()
+        if len(n_text) > 220:
+            n_text = n_text[:220] + "..."
+        n_options = neighbour.get("options") or {}
+        n_answer = str(neighbour.get("label") or "")
+        if n_answer in n_options:
+            n_answer += f") {n_options[n_answer]}"
+        parts.append(f'A similar solved problem: "{n_text}" Its answer is '
+                     f'{n_answer}. Work through it once: this problem is '
+                     f'solved the same way.')
+    parts.append(strategy_cue(problem))
+    return {"text": " ".join(parts),
+            "source": "retrieval" if neighbour is not None else "strategy",
+            "neighbour": _neighbour_payload(neighbour, source)}
+
+
+def explain_answer(problem, label, llm=None, index=None, problems=()):
+    """After a wrong answer: how to actually do this problem.
+
+    The answer is already revealed, so the model does not have to find it
+    (the one thing a 0.8B model cannot do). It only has to explain how one
+    CHECKS that the correct option fits, anchored on a similar solved
+    problem from the retrieval index. Every attempt is validated with
+    consistent(): an explanation that never lands on the correct value is
+    rejected; two failures (or no model) fall back to the worked neighbour
+    plus the topic strategy cue, which is deterministic and always right.
+    """
+    found = similar_problem(problem, index=index, problems=problems,
+                            exclude_id=problem["id"])
+    neighbour, neighbour_source = None, None
+    if found:
+        neighbour_source, neighbour = found
+
+    if llm is None:
+        return _fallback_explanation(problem, label, neighbour, neighbour_source)
+
+    messages = _explain_messages(problem, label, neighbour)
+    last_text = None
+    for temperature in (0.4, 0.0):
         try:
-            text = llm(messages, timeout=25.0).strip().strip('"')
-            text = clean_math_text(text)
-            words = text.split()
-            if len(words) > 120:
-                text = " ".join(words[:120]) + "..."
-            if text:
-                return {"text": text, "source": "model"}
+            text = llm(messages, timeout=45.0, temperature=temperature,
+                       max_tokens=200).strip().strip('"')
         except Exception:
-            pass
-    return {"text": strategy_cue(problem), "source": "strategy"}
+            break  # the model server is out; do not retry the same way
+        text = clean_math_text(text)
+        words = text.split()
+        if len(words) > 100:
+            text = " ".join(words[:100]) + "..."
+        last_text = text
+        if consistent(text, problem, label):
+            return {"text": text, "source": "model",
+                    "neighbour": _neighbour_payload(neighbour, neighbour_source)}
+    # both attempts failed the check: the deterministic path wins
+    fallback = _fallback_explanation(problem, label, neighbour, neighbour_source)
+    if last_text:
+        fallback["rejected"] = last_text
+    return fallback
 
 
 def clean_math_text(text):

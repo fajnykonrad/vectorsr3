@@ -287,9 +287,18 @@ async function answer(){
       (hintRung ? ` · with ${hintRung} hint${hintRung > 1 ? "s" : ""}` : "") +
       `</div>`;
     if (r.explanation){
-      v.insertAdjacentHTML("beforeend",
+      const ex = r.explanation;
+      let html =
         `<div class="explain"><span class="src">Why the answer is ${r.label} ` +
-        `(${r.explanation.source}):</span><br>${r.explanation.text}</div>`);
+        `(${ex.source}):</span><br>${ex.text}</div>`;
+      if (ex.neighbour){
+        const n = ex.neighbour;
+        const nAnswer = n.label ? ` — answer ${n.label}` : "";
+        html +=
+          `<div class="hint"><span class="src">A similar solved problem ` +
+          `(${n.source}${nAnswer}):</span><br>${n.text}</div>`;
+      }
+      v.insertAdjacentHTML("beforeend", html);
     }
     show($("verdict"), true);
     show($("btn-next"), true); show($("btn-skip"), false);

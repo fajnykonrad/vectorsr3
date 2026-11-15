@@ -38,10 +38,15 @@ STATIC = os.path.join(os.path.dirname(__file__), "static")
 LLM_URL = "http://127.0.0.1:8081/v1/chat/completions"
 
 
-def llm_call(messages, timeout=20.0):
-    """One chat completion from llama-server; raises on any failure."""
-    body = json.dumps({"messages": messages, "max_tokens": 220,
-                       "temperature": 0.7, "cache_prompt": True}).encode()
+def llm_call(messages, timeout=20.0, temperature=0.7, max_tokens=220):
+    """One chat completion from llama-server; raises on any failure.
+
+    temperature and max_tokens are per call: hints and explanations want
+    different settings, and a short answer must not pay for a long budget.
+    """
+    body = json.dumps({"messages": messages, "max_tokens": max_tokens,
+                       "temperature": temperature,
+                       "cache_prompt": True}).encode()
     request = urllib.request.Request(
         LLM_URL, data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -88,7 +93,8 @@ class Trainer:
         def work():
             try:
                 holder["value"] = explain_answer(problem, problem["label"],
-                                                 llm=llm_call)
+                                                 llm=llm_call, index=self.index,
+                                                 problems=self.problems)
             except Exception:
                 pass  # the answer endpoint generates one on demand instead
             finally:
@@ -96,18 +102,28 @@ class Trainer:
 
         threading.Thread(target=work, daemon=True).start()
 
+    def discard_explanation(self, problem):
+        """A correct answer needs no explanation: stop the prefetch work."""
+        with self._expl_lock:
+            self.explanations.pop(problem["id"], None)
+
     def take_explanation(self, problem):
         """The prefetched explanation, waiting for it briefly; generates one
-        only when there is nothing to wait for."""
+        only when the prefetch thread died (server down, then the fallback
+        path answers at once)."""
         pid = problem["id"]
         with self._expl_lock:
             entry = self.explanations.pop(pid, None)
         if entry is None:
-            return explain_answer(problem, problem["label"], llm=llm_call)
+            return explain_answer(problem, problem["label"], llm=llm_call,
+                                  index=self.index, problems=self.problems)
         event, holder = entry
-        event.wait(timeout=25.0)
-        return holder.get("value") or explain_answer(problem, problem["label"],
-                                                     llm=llm_call)
+        event.wait(timeout=60.0)
+        value = holder.get("value")
+        if value is None:
+            value = explain_answer(problem, problem["label"], llm=llm_call,
+                                   index=self.index, problems=self.problems)
+        return value
 
     def sanitized(self, problem):
         """What the browser may see: no label, no split."""
@@ -249,6 +265,11 @@ class Handler(BaseHTTPRequestHandler):
             result["overall_after"] = round(overall_after)
             result["label"] = problem["label"]
             result["options"] = problem.get("options") or {}
+            if correct:
+                trainer.discard_explanation(problem)  # nothing to explain
+            else:
+                # the prefetch has been running since the problem was served
+                result["explanation"] = trainer.take_explanation(problem)
             self._json(200, result)
         except Exception as error:
             self._json(500, {"error": str(error)})
