@@ -10,3 +10,4 @@ Static few-shot (4 solved examples in the cached prompt prefix, zero time cost a
 Bigger model (Qwen3.5-2B Q8_0): 26.0% with 7 of 50 timeouts. It is 2.5× slower (4.5 tok/s prefill vs 11), and the capability gain didn't compensate. Letter precision was still at base rates. It also cannot afford few-shot or RAG: a ~550-token prefix at 4.5 tok/s would take 122 s, over the limit.
 Meta-finding: across six experiments (corrected OCR data, shuffle voting, few-shot, bigger model), accuracy stayed in the 26–28% band. Per-letter precision was always at base rates (for example, predicted-D precision 22.9% vs a 22.7% base rate; only rare B predictions carried slight signal, 27.2% vs 21.9%). The approach "read problem, pick letter" has a hard ceiling on this hardware, regardless of model size or prompting.
 The team members: Konrad Danielewicz, Alex Pons, Marc Cabrero, Andrei Vasilev.
+Acces to the interface: http://10.198.33.209:8001/
