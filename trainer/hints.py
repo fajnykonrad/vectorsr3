@@ -85,31 +85,51 @@ def model_hint(problem, label, llm, timeout=20.0):
     return text, "ok"
 
 
+WRONG_LETTER = re.compile(
+    r"\b(?:correct|right)\s+(?:option|answer|choice)\s+(?:is|:)\s*"
+    r"(?:letter\s+)?([a-e])\b")
+
+
 def consistent(explanation, problem, label):
     """True when the explanation could plausibly walk to the right answer.
 
     The model must land on the correct option's value: if the explanation
     never mentions 20 while explaining why D) 20 is right, it is inventing
-    its own (wrong) path. Without options there is nothing to anchor on,
-    so any reasonably long text passes.
+    its own (wrong) path. It must also never name a DIFFERENT letter as the
+    correct one (a small model given a second solved problem will sometimes
+    conclude with that one's answer instead). Without options there is
+    nothing to anchor on, so any reasonably long text passes.
     """
     if not explanation or len(explanation.split()) < 8:
         return False
+    low = explanation.lower()
+    for match in WRONG_LETTER.finditer(low):
+        if match.group(1) != label.lower():
+            return False  # asserts another option is the correct one
     value = str((problem.get("options") or {}).get(label, "")).strip()
     if not value:
         return True
-    low = explanation.lower()
     pattern = r"(?<![\w.])" + re.escape(value.lower()) + r"(?![\w.])"
-    return re.search(pattern, low) is not None
+    # The landing: the value must be in the FINAL sentence. "6" appears
+    # incidentally in a problem about 6 apples even when the explanation
+    # concludes with the wrong number; naming the correct letter also counts.
+    sentences = re.split(r"(?<=[.!?])\s+", low.strip())
+    last = sentences[-1] if sentences else low
+    if re.search(pattern, last):
+        return True
+    return re.search(r"\b(?:correct|right)\s+(?:option|answer|choice)\s+"
+                     r"(?:is|:)\s*(?:letter\s+)?" + label.lower() + r"\b",
+                     low) is not None
 
 
 EXPLAIN_SYSTEM = (
     "You explain math to school students. You get a problem with options, "
-    "its correct option, and a similar solved problem. Explain how to reach "
-    "the correct answer in exactly 3 short numbered steps: 1) what the "
-    "problem asks and what we know, 2) the reasoning or calculation using "
-    "the numbers, 3) why the correct option is the right one. Use only "
-    "numbers that appear in the problem, its options, or the solved problem. "
+    "its correct option, and the method for this kind of problem. Explain "
+    "how to reach the correct answer in exactly 3 short numbered steps: "
+    "1) what the problem asks and what we know, 2) the reasoning or "
+    "calculation using the numbers, 3) why the correct option is the right "
+    "one, ending with its letter and value (for example: 'so the answer is "
+    "B) 14'). Use only numbers that appear in the problem or its options. "
     "Plain text: no markdown, no asterisks, no LaTeX. At most 80 words. "
     "Write in the same language as the problem."
 )
@@ -125,7 +145,10 @@ def _neighbour_payload(neighbour, source=None):
             "options": neighbour.get("options") or {}}
 
 
-def _explain_messages(problem, label, neighbour=None):
+def _explain_messages(problem, label, strategy):
+    """The prompt. No second problem in it: a 0.8B given a similar solved
+    problem will explain (or conclude with) THAT one instead. The topic's
+    method cue gives it guidance without anything confusable."""
     lines = [problem["text"].strip()]
     options = problem.get("options") or {}
     for letter in "ABCDE":
@@ -135,18 +158,9 @@ def _explain_messages(problem, label, neighbour=None):
     if label in options:
         target += f") {options[label]}"
     target += "."
-    parts = ["Problem:", "\n".join(lines), "", target]
-    if neighbour is not None:
-        n_text = neighbour["text"].strip()
-        if len(n_text) > 280:
-            n_text = n_text[:280] + "..."
-        n_options = neighbour.get("options") or {}
-        n_answer = str(neighbour.get("label") or "")
-        if n_answer in n_options:
-            n_answer += f") {n_options[n_answer]}"
-        parts += ["", "A similar solved problem:", n_text,
-                  f"Its answer is {n_answer}."]
-    parts += ["", "Explain the first problem in the 3 steps."]
+    parts = ["Problem:", "\n".join(lines), "", target, "",
+             f"Method for this kind of problem: {strategy}", "",
+             "Explain only this problem, in the 3 steps."]
     return [{"role": "system", "content": EXPLAIN_SYSTEM},
             {"role": "user", "content": "\n".join(parts)}]
 
@@ -180,11 +194,13 @@ def explain_answer(problem, label, llm=None, index=None, problems=()):
 
     The answer is already revealed, so the model does not have to find it
     (the one thing a 0.8B model cannot do). It only has to explain how one
-    CHECKS that the correct option fits, anchored on a similar solved
-    problem from the retrieval index. Every attempt is validated with
-    consistent(): an explanation that never lands on the correct value is
-    rejected; two failures (or no model) fall back to the worked neighbour
-    plus the topic strategy cue, which is deterministic and always right.
+    CHECKS that the correct option fits, guided by the topic's method. The
+    similar solved problem from the retrieval index stays OUT of the prompt
+    (the model explained that one instead) and anchors the page and the
+    fallback instead. Every attempt is validated with consistent(): an
+    explanation that never lands on the correct value, or names another
+    letter as correct, is rejected; two failures (or no model) fall back to
+    the worked neighbour plus the topic strategy cue, which is always right.
     """
     found = similar_problem(problem, index=index, problems=problems,
                             exclude_id=problem["id"])
@@ -195,7 +211,7 @@ def explain_answer(problem, label, llm=None, index=None, problems=()):
     if llm is None:
         return _fallback_explanation(problem, label, neighbour, neighbour_source)
 
-    messages = _explain_messages(problem, label, neighbour)
+    messages = _explain_messages(problem, label, strategy_cue(problem))
     last_text = None
     for temperature in (0.4, 0.0):
         try:
