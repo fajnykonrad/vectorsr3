@@ -34,6 +34,32 @@ input[name=user] { width:130px; }
 .hdr-right { display:flex; gap:10px; justify-content:flex-end; align-items:center; }
 .timer { font-variant-numeric:tabular-nums; color:var(--warn); font-weight:600; }
 
+/* the chronometer: a ship's clock pinned to the side of the screen,
+   filling clockwise; amber as the sand runs low, red and pulsing when
+   you should already have answered */
+.chrono { display:none; position:fixed; right:18px; top:50%; transform:translateY(-50%);
+          z-index:30; flex-direction:column; align-items:center; gap:2px;
+          background:var(--panel); border:1px solid var(--line); border-radius:14px;
+          padding:10px; box-shadow:0 6px 20px rgba(0,0,0,.45); }
+.chrono.on { display:flex; }
+.chrono svg { transform:rotate(-90deg); }
+.chrono .chrono-bg { fill:var(--panel-2); stroke:var(--line); stroke-width:3; }
+.chrono .chrono-ring { fill:none; stroke:var(--gold); stroke-width:3;
+                       stroke-linecap:round;
+                       transition:stroke-dashoffset .25s linear, stroke .4s; }
+.chrono text { font:700 13px system-ui, sans-serif; fill:var(--gold);
+               transform:rotate(90deg); transform-origin:24px 24px;
+               font-variant-numeric:tabular-nums; }
+.chrono .chrono-lbl { font-size:10px; color:var(--dim); letter-spacing:.08em;
+                      text-transform:uppercase; }
+.chrono.warn .chrono-ring { stroke:var(--warn); }
+.chrono.warn text { fill:var(--warn); }
+.chrono.hot .chrono-ring { stroke:var(--bad); }
+.chrono.hot text { fill:var(--bad); }
+.chrono.hot { animation:tick 1s infinite; }
+.chrono.frozen { animation:none; }
+@keyframes tick { 50% { opacity:.55; } }
+
 /* tabs: wooden ship planks */
 .tabs { display:flex; gap:6px; margin-bottom:14px; }
 .tab { padding:8px 22px; border-radius:10px 10px 0 0; border:1px solid transparent;
@@ -192,12 +218,20 @@ table.full th { color:var(--gold-dim); font-weight:600; font-size:11px;
 </style>
 </head>
 <body>
+<div class="chrono" id="chrono" title="Seconds on this problem">
+  <svg viewBox="0 0 48 48" width="48" height="48">
+    <circle class="chrono-bg" cx="24" cy="24" r="19"/>
+    <circle class="chrono-ring" id="chrono-ring" cx="24" cy="24" r="19"/>
+    <text id="timer" x="24" y="28.5" text-anchor="middle">0</text>
+  </svg>
+  <span class="chrono-lbl">on it</span>
+</div>
+
 <div class="wrap">
 <header>
   <h1>☠ Kangaroo Trainer</h1>
   <div class="hdr-right">
     <input name="user" placeholder="your name" value="guest">
-    <span class="timer" id="timer"></span>
   </div>
 </header>
 
@@ -331,12 +365,28 @@ async function api(url, opts){
   return r.json();
 }
 
+/* ---- the chronometer: fills one full ring over 90 s, then keeps time ---- */
+const CHRONO_C = 2 * Math.PI * 19;               // the ring's circumference
+function setChrono(seconds){
+  const box = $("chrono"), ring = $("chrono-ring");
+  const frac = Math.min(seconds / 90, 1);
+  ring.style.strokeDashoffset = (CHRONO_C * (1 - frac)).toFixed(1);
+  ring.style.strokeDasharray = CHRONO_C.toFixed(1);
+  $("timer").textContent = Math.floor(seconds);
+  box.classList.toggle("warn", seconds >= 45 && seconds < 75);
+  box.classList.toggle("hot", seconds >= 75);
+}
 function startTimer(){
   startTs = Date.now();
+  $("chrono").classList.add("on");
+  $("chrono").classList.remove("frozen");
   clearInterval(timerId);
-  timerId = setInterval(() => {
-    $("timer").textContent = ((Date.now() - startTs)/1000).toFixed(0) + " s";
-  }, 250);
+  timerId = setInterval(() => setChrono((Date.now() - startTs)/1000), 250);
+  setChrono(0);
+}
+function freezeTimer(){
+  clearInterval(timerId);
+  $("chrono").classList.add("frozen");   // .frozen kills the pulse, keeps colour
 }
 
 async function next(){
@@ -377,7 +427,7 @@ async function next(){
     show($("btn-reveal"), false); show($("btn-next"), false); show($("btn-skip"), true);
     $("btn-hint").disabled = false;
     $("btn-answer").disabled = true;
-    $("timer").textContent = "";
+    $("chrono").classList.remove("on", "warn", "hot", "frozen");
     setStatus("");
     startTimer();
   } catch (e){ setStatus("Error: " + e.message); }
@@ -396,7 +446,7 @@ async function answer(){
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ user:user(), problem:problem.id, answer:choice,
                              certainty, seconds, hint_rung:hintRung })});
-    clearInterval(timerId);
+    freezeTimer();
     // paint the buttons: chosen green/red, and the correct one green too
     const buttons = [...$("p-opts").children];
     buttons.forEach(b => {
