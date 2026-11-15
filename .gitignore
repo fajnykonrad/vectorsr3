@@ -19,3 +19,6 @@ __pycache__/
 .venv/
 .DS_Store
 /pirate-world.gif
+
+# stray board run logs
+*.log
