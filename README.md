@@ -1259,3 +1259,59 @@ The [`publish-project`](.skills/publish-project/SKILL.md) skill can check your R
 - **bge-small-en-v1.5**: by BAAI, GGUF by CompendiumLabs. Check the license on the [model card](https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf).
 - **RapidOCR**: [RapidAI/RapidOCR](https://github.com/RapidAI/RapidOCR), Apache 2.0 license.
 - For more on generative AI on this board, including RAG, see Marcelo Rovai's book [Generative AI at the Edge: Running Small Language Models with Arduino UNO Q and llama.cpp](https://mjrovai.github.io/genai-uno-q/).
+
+---
+
+# Team results: vectorsr3
+
+## Architecture
+
+The copilot has two halves, both on the board:
+
+- **The trainer (Teach)**: `trainer/` — a web page served by the board where a student answers A to E and rates how sure they were; an Elo rating per topic picks the next problem (75% adaptive + 25% uniform, inside the zone of reachable difficulty), a four-rung hint ladder never gives the answer away (rung 3 is leak-checked in code), and the LED matrix shows the verdict. Topics come from anchor-sentence embeddings (`trainer/build_tags.py` -> `data/tags.json`), one taxonomy shared with the reason side.
+- **The copilot (Reason)**: `copilot/` — the official `predict.py` path. A 1,863-problem retrieval bank (`data/index.db`, cat+eng only, matching the hidden test's languages), a kNN vote prior, and a fitted letter-bias correction (5 offsets + vote weight, a multinomial logistic fit trained on 4,073 collected signals).
+
+Both halves share the same llama.cpp servers (ports 8081/8082), the same retrieval index, and the same topic tags. The reason-side fusion is gated: a group ships only where 5-fold cross-validation by problem id says it generalizes (`fit_model.py --margin 2.0`), so a fit that overfits one group cannot hurt the other.
+
+## The ablation table (789 validation problems, laptop reference runs)
+
+| Config | Accuracy | Always-D floor, same data |
+| --- | --- | --- |
+| **Raw model (shipped)** | **22.3%** | 22.7% |
+| Fitted fusion, strict group policy | 21.8% | - |
+| kNN votes only | 21.3% | - |
+| RAG (2 retrieved examples) | 22.2% | - |
+| Ensemble of 5 prompt views (soft vote) | 19.5% | - |
+| 4B model raw (n=200) | 22.5% | 25.5% |
+| 4B + prompted reasoning | 11.7% | 15.0% |
+
+On the board (50 problems): raw 26.0%, 0 over the 60 s limit, worst 24.9 s. Every run is reproducible with `eval.py --name ...` and logged in `results/ablations.csv`.
+
+## Error analysis
+
+- **By options**: with OCR options ~22%; without them the raw model answers A or D almost exclusively (C and E are never sampled) and lands ~23% - still a guess.
+- **By topic** (shared taxonomy): geometry and area_volume are the weakest (12-19%); numbers the strongest (~30-67% depending on the sample).
+- **By language**: eng and cat beat esp in most runs; the hidden test is cat+eng, so the shipped bank is cat+eng only.
+- **Letters**: the raw model is heavily biased (A/D, almost never C); the fitted offsets rebalance this on train, but the correction does not transfer to validation (see below).
+
+## What didn't work (and how we know)
+
+Three negative results, each measured on the full 789-problem validation set rather than a sample:
+
+1. **The fitted fusion overfit twice.** The first version (300 signals, one language) inverted the letter bias and dropped to 17%; the letter tables caught it. The full re-fit (4,073 signals) looked +4.4 points under cross-validation on its own group but lost 4.9 points on held-out problems; the letter table showed fused-C 71 against truth-C 39. We shipped a CV-gated policy instead - and on validation the gated fusion still ended at net -4 flips against raw. We removed it from the default path.
+2. **RAG examples share topics, not answers.** The nearest-neighbour problems are about the same subject but their labels do not predict this problem's answer (we confirmed the README's hunch at scale: 22.2% with RAG vs 22.3% without).
+3. **Prompt-view ensembles fail because errors are correlated.** Five prompt variants of the same model scored 18.9-21.5% alone and 19.5% as a soft-vote ensemble: the mistakes repeat across prompts, so voting adds no signal. A larger model (4B) repeated the same pattern, and prompted reasoning tripled the latency while scoring below the floor.
+
+The honest conclusion: without weight updates, this class of model guesses at the always-D floor on Kangaroo problems, and every "calibration" trick rearranges the guesses rather than improving them. The shipped configuration keeps the raw model with the D fallback - the best measured configuration - and the value the team added on this track is the retrieval bank, the shared topic taxonomy, the CV-gated fitting framework that detects its own overfitting, and this measurement discipline.
+
+## How to replicate (reason side, after the README steps 0-12)
+
+```bash
+# signals + fit (on the board, or from a laptop with the servers forwarded)
+python3 collect.py --languages eng,cat
+python3 fit_model.py --languages eng,cat --margin 2.0   # the CV gate decides per group
+python3 eval.py --limit 50 --name fused-v2              # ablation
+python3 eval.py --languages cat,eng --limit 0 --name official-run
+```
+
+`TRAINING.md` documents the full training loop, `FARM.md` how to parallelize signal collection across laptops, `BOARD_CHECKLIST.md` the board bring-up. The official run's language filter matches the announced hidden test (cat+eng).
